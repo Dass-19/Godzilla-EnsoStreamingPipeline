@@ -45,7 +45,7 @@ flowchart TD
     end
  
     subgraph Streaming ["Apache Kafka"]
-        C1[("Topics JSON/Avro")]
+        C1[("Topics JSON")]
     end
  
     subgraph Procesamiento ["Apache Spark"]
@@ -60,7 +60,7 @@ flowchart TD
  
     subgraph Visualizacion ["Servicio y Visualización"]
         F1["API FastAPI"]
-        F2["Dashboard Interactivo Leaflet/Mapbox"]
+        F2["Dashboard Interactivo"]
     end
  
     A1 --> B
