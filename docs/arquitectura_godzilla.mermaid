@@ -1,45 +1,45 @@
 flowchart TD
     subgraph Fuentes ["Fuentes Externas"]
-        A1["NOAA, IRI, NASA, Copernicus"]
-        A2["INAMHI, CELEC EP, INOCAR, SNGR"]
-        A3["OpenStreetMap, DEM"]
+        A1["Clima/Satélite: NOAA, NASA POWER, Copernicus, GEE, NDBC, ENSO Indexes"]
+        A2["Local/Meteo: INAMHI, CELEC EP, INOCAR, OpenMeteo, OpenWeatherMap"]
+        A3["Alertas/Geo: SNGR, SGR, Segura EP, OSM"]
     end
-
+ 
     subgraph Ingesta ["Ingesta (Producers)"]
         B["Scripts Python"]
     end
-
+ 
     subgraph Streaming ["Apache Kafka"]
-        C1[("Topics JSON/Avro")]
+        C1[("Topics JSON")]
     end
-
+ 
     subgraph Procesamiento ["Apache Spark"]
         D1["Structured Streaming"]
         D2["Cálculo Índice Riesgo"]
     end
-
+ 
     subgraph Almacenamiento ["HDFS"]
         E1[("Zona Raw")]
         E2[("Zona Processed<br/>Formato Parquet<br/>Particionado por fecha y fuente")]
     end
-
+ 
     subgraph Visualizacion ["Servicio y Visualización"]
         F1["API FastAPI"]
-        F2["Dashboard Interactivo Leaflet/Mapbox"]
+        F2["Dashboard Interactivo"]
     end
-
+ 
     A1 --> B
     A2 --> B
     A3 --> B
-
+ 
     B --> C1
-
+ 
     C1 --> D1
     D1 --> D2
-
+ 
     D2 -->|"Guarda Processed"| E2
     B -->|"Guarda Raw"| E1
-
+ 
     E1 -.-> F1
     E2 --> F1
     F1 --> F2
