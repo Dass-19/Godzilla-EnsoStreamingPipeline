@@ -1,0 +1,6 @@
+.venv/
+.vscode/
+__pycache__/
+backend/producers/logs/
+.env
+ensostreamingpipeline-7f414895f6f4.json

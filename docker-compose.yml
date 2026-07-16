@@ -1,0 +1,260 @@
+services:
+  # --- HADOOP ---
+  namenode:
+    build: docker/hadoop
+    hostname: namenode
+    command: ["hdfs", "namenode"]
+    user: root
+    ports:
+      - 9870:9870
+      - 8020:8020
+    env_file:
+      - ./docker/hadoop/config
+    environment:
+      ENSURE_NAMENODE_DIR: "/tmp/hadoop-root/dfs/name"
+    volumes:
+      - namenode_data:/tmp/hadoop-hadoop/dfs/name
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9870/dfshealth.html"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - enso_net
+
+  datanode:
+    build: docker/hadoop
+    hostname: datanode
+    command: ["hdfs", "datanode"]
+    user: root
+    ports:
+      - 9864:9864
+      - 9866:9866
+    env_file:
+      - ./docker/hadoop/config
+    volumes:
+      - datanode_data:/tmp/hadoop-hadoop/dfs/data
+    depends_on:
+      namenode:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9864"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - enso_net
+
+  resourcemanager:
+    build: docker/hadoop
+    hostname: resourcemanager
+    command: ["yarn", "resourcemanager"]
+    ports:
+      - 8088:8088
+    env_file:
+      - ./docker/hadoop/config
+    depends_on:
+      namenode:
+        condition: service_healthy
+    networks:
+      - enso_net
+
+  nodemanager:
+    build: docker/hadoop
+    command: ["yarn", "nodemanager"]
+    env_file:
+      - ./docker/hadoop/config
+    depends_on:
+      - resourcemanager
+    networks:
+      - enso_net
+
+  # --- KAFKA ---
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/commands/ruok | grep -q '\"error\" : null'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - enso_net
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:29092", "--list"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+    networks:
+      - enso_net
+
+  init-kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: [ '/bin/sh', '-c' ]
+    command: |
+      "
+      echo -e 'Creando topics de kafka'
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic gee-data
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic seguraep-layers
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic alertas-sngr
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic guayas-osm
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic enso-indexes
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic inamhi-data
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic mareas-inocar
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic nasa-power-data
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic nivel-embalse-celec
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic noaa-data
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic open-meteo-data
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic openweathermap-data
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic sgr-eventos
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic ndbc-buoys
+      "
+    networks:
+      - enso_net
+
+  # --- SPARK ---
+  spark-master:
+    image: apache/spark:3.5.1
+    user: root
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.master.Master", "-h", "0.0.0.0"]
+    ports:
+      - "8080:8080"
+      - "7077:7077"
+    volumes:
+      - ./backend/spark:/opt/spark-app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    networks:
+      - enso_net
+
+  spark-worker:
+    image: apache/spark:3.5.1
+    user: root
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker", "spark://spark-master:7077"]
+    volumes:
+      - ./backend/spark:/opt/spark-app
+    depends_on:
+      spark-master:
+        condition: service_healthy
+    networks:
+      - enso_net
+
+  # --- PRODUCERS ---
+  producers:
+    build: backend/producers
+    depends_on:
+      init-kafka:
+        condition: service_completed_successfully
+    env_file:
+      - ./backend/env/.env
+    environment:
+      - WEBHDFS_URL=http://namenode:9870
+    volumes:
+      # Montamos el archivo de credenciales GEE en el contenedor usando la ruta que espera el .env
+      - ./backend/env/ensostreamingpipeline-7f414895f6f4.json:/app/ensostreamingpipeline-7f414895f6f4.json
+    networks:
+      - enso_net
+
+  # --- SPARK SUBMITTER ---
+  spark-submitter:
+    image: apache/spark:3.5.1
+    user: root
+    restart: on-failure:5
+    depends_on:
+      spark-master:
+        condition: service_healthy
+      namenode:
+        condition: service_healthy
+      init-kafka:
+        condition: service_completed_successfully
+    volumes:
+      - ./backend/spark:/opt/spark-app
+    environment:
+      - KAFKA_BOOTSTRAP=kafka:29092
+      - HDFS_BASE_PATH=hdfs://namenode:8020/enso_data
+      - CHECKPOINT_BASE_PATH=hdfs://namenode:8020/enso_data/_checkpoints
+      - GEO_REF_PATH=/opt/spark-app/data/geo_ref/zonas_guayaquil.csv
+    entrypoint: [ "/bin/sh", "-c" ]
+    command: |
+      "
+      set -e
+
+      echo 'Etapa 1: esperando HDFS namenode (webhdfs)...'
+      until curl -sf http://namenode:9870/dfshealth.html > /dev/null; do
+        echo '  namenode no listo, reintentando en 5s'
+        sleep 5
+      done
+      echo 'namenode OK'
+
+      echo 'Etapa 2: esperando Spark master...'
+      until curl -sf http://spark-master:8080 > /dev/null; do
+        echo '  spark-master no listo, reintentando en 5s'
+        sleep 5
+      done
+      echo 'spark-master OK'
+
+      echo 'Etapa 3: lanzando spark-submit'
+      exec /opt/spark/bin/spark-submit \\
+        --master spark://spark-master:7077 \\
+        --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1 \\
+        --conf spark.driver.extraJavaOptions=\"-Divy.cache.dir=/tmp -Divy.home=/tmp\" \\
+        --conf spark.hadoop.dfs.client.use.datanode.hostname=true \\
+        --py-files /opt/spark-app/risk_index.py \\
+        /opt/spark-app/spark_streaming_job.py
+      "
+    networks:
+      - enso_net
+
+  # --- API ---
+  api:
+    build: api
+    depends_on:
+      namenode:
+        condition: service_healthy
+    environment:
+      - WEBHDFS_URL=http://namenode:9870
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./frontend:/frontend
+      - ./backend/spark:/spark:ro
+    networks:
+      - enso_net
+
+networks:
+  enso_net:
+    driver: bridge
+
+volumes:
+  namenode_data:
+  datanode_data:

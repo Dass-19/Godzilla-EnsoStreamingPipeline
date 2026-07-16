@@ -1,0 +1,11 @@
+zona_id,nombre_sector,lat_centroide,lon_centroide,cota_media_msnm,pendiente_clase,historicamente_inundable,cercania_estero_m
+Z01,Centro (9 de Octubre),-2.1900,-79.8875,6,plana,true,150
+Z02,Urdesa,-2.1560,-79.9020,8,plana,false,400
+Z03,Guasmo Sur,-2.2600,-79.8950,4,plana,true,80
+Z04,Sauces,-2.1300,-79.9080,10,suave,false,600
+Z05,Isla Trinitaria,-2.2520,-79.9248,3,plana,true,50
+Z06,Bastión Popular,-2.0950,-79.9500,12,suave,true,300
+Z07,Ceibos,-2.1200,-79.9350,20,moderada,false,1200
+Z08,Mapasingue,-2.1550,-79.9200,15,moderada,true,350
+Z09,Duran (limite),-2.1750,-79.8300,5,plana,true,100
+Z10,Samanes,-2.1100,-79.9150,11,suave,false,700
