@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Godzilla</title>
+    <link rel="icon" type="image/png" href="icon.png">
+
+    <!-- MapLibre GL JS CSS -->
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <link rel="stylesheet" href="styles.css?v=13">
+</head>
+
+<body>
+    <!-- (Eliminado Ticker de Alertas) -->
+
+    <!-- Contenedor del Mapa -->
+    <div id="map"></div>
+
+    <!-- Menú de Capas -->
+    <div id="layer-control" class="layer-control-container">
+        <button id="toggle-layer-control-btn" class="btn-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                <polyline points="2 12 12 17 22 12"></polyline>
+                <polyline points="2 17 12 22 22 17"></polyline>
+            </svg>
+        </button>
+        <div class="clearfix"></div>
+        <div id="layer-control-content" class="layer-control-menu hidden">
+            <h4 class="menu-title color-blue">Capas del Mapa</h4>
+            <label class="menu-label"><input type="checkbox" id="toggle-thermal"> Mapa Térmico El Niño</label>
+            <label class="menu-label"><input type="checkbox" id="toggle-sst" checked> Temperatura Mar (NASA)</label>
+            <label class="menu-label"><input type="checkbox" id="toggle-owm-precip"> Precipitación (OWM)</label>
+            <label class="menu-label"><input type="checkbox" id="toggle-owm-clouds"> Nubes (OWM)</label>
+            <label class="menu-label"><input type="checkbox" id="toggle-buoys"> Boyas Oceánicas</label>
+        </div>
+    </div>
+
+    <!-- Menú de Capas Locales -->
+    <div id="local-layer-control" class="layer-control-container local-control hidden">
+        <button id="toggle-local-layer-control-btn" class="btn-icon bg-slate-900">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                <polyline points="2 12 12 17 22 12"></polyline>
+                <polyline points="2 17 12 22 22 17"></polyline>
+            </svg>
+        </button>
+        <div class="clearfix"></div>
+        <div id="local-layer-control-content" class="layer-control-menu hidden">
+            <h4 class="menu-title color-green">Vulnerabilidad Guayaquil</h4>
+            <div style="margin-bottom: 10px; font-size: 12px; color: #94a3b8;">
+                Altitud: <span id="hover-elevation" style="font-weight: bold; color: white;">-- m s.n.m.</span>
+            </div>
+            <label class="menu-label"><input type="checkbox" id="toggle-base-map" checked> Mapa Base</label>
+            <label class="menu-label"><input type="checkbox" id="toggle-riesgo-zonas" checked> 🔴 Zonas de
+                Riesgo</label>
+
+            <label class="menu-label"><input type="checkbox" id="toggle-sgr-events" checked> 🚨 Eventos Lluvias
+                (SGR)</label>
+            <label class="menu-label"><input type="checkbox" id="toggle-sgr-celestes" checked> 🟦 Sectores
+                (SeguraEP)</label>
+            <label class="menu-label"><input type="checkbox" id="toggle-seguraep-zonasegura" checked> 🟩 Zonas Seguras
+                (SeguraEP)</label>
+            <label class="menu-label"><input type="checkbox" id="toggle-sgr-zonasinundables" checked> 🌊 Zonas
+                Inundables
+                (SeguraEP)</label>
+            <label class="menu-label"><input type="checkbox" id="toggle-sgr-viasinundables" checked> 🚗 Vías Inundables
+                (SeguraEP)</label>
+        </div>
+    </div>
+
+    <!-- Control de Vista Flotante (Pill) -->
+    <div id="view-toggle-pill" class="view-toggle-container">
+        <button id="btn-regional" class="view-toggle-btn active">🌍 Vista Regional</button>
+        <button id="btn-local" class="view-toggle-btn">🏙️ Vista Local</button>
+    </div>
+
+    <!-- Botón para ocultar/mostrar sidebar -->
+    <button id="btn-toggle-sidebar" class="btn-icon sidebar-toggle-btn" title="Ocultar/Mostrar Menú">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+    </button>
+
+    <!-- Leyenda de colores (SST) -->
+    <div id="sst-legend" class="dashboard-panel">
+        <h4>Anomalía Térmica (°C)</h4>
+        <div class="legend-scale">
+            <span style="background: #000080;"></span>
+            <span style="background: #0000ff;"></span>
+            <span style="background: #00ffff;"></span>
+            <span style="background: #ffffff;"></span>
+            <span style="background: #ffff00;"></span>
+            <span style="background: #ff0000;"></span>
+            <span style="background: #800000;"></span>
+        </div>
+        <div class="legend-labels">
+            <span>-5</span>
+            <span>-3</span>
+            <span>-1</span>
+            <span>0</span>
+            <span>+1</span>
+            <span>+3</span>
+            <span>+5</span>
+        </div>
+    </div>
+
+    <!-- Panel de Línea de Tiempo (Time-Lapse) -->
+    <div id="time-lapse-panel" class="dashboard-panel">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <button id="btn-play-time" class="btn-icon"
+                style="padding: 6px; width:30px; height:30px; display:flex; align-items:center; justify-content:center;">▶</button>
+            <span id="time-lapse-date"
+                style="color:#fff; font-weight:bold; font-size:13px; margin-left: 10px;">--</span>
+        </div>
+        <input type="range" id="time-lapse-slider" min="-30" max="0" value="0" style="width: 100%; cursor:pointer;">
+    </div>
+
+    <!-- Sidebar lateral izquierdo con las tarjetas -->
+    <div id="dashboard-sidebar" class="dashboard-panel dashboard-panel-scroll">
+        <div id="tracker-cards">
+            <!-- SST Card -->
+            <section class="card" id="sst-card">
+                <h3>🌡️ Anomalía Oceánica (SST)</h3>
+                <div class="metrics">
+                    <div class="metric w-45 p-2 rounded" id="block-nino34"
+                        style="padding: 8px; border-radius: 8px; transition: background 0.3s;"><span class="label">Niño
+                            3.4</span><span class="value" id="val-nino34">--
+                            °C</span></div>
+                    <div class="metric w-45 p-2 rounded" id="block-nino12"
+                        style="padding: 8px; border-radius: 8px; transition: background 0.3s;"><span class="label">Niño
+                            1+2</span><span class="value" id="val-nino12">--
+                            °C</span></div>
+                    <div class="metric w-45 p-2 rounded" id="block-nino3"
+                        style="padding: 8px; border-radius: 8px; transition: background 0.3s;"><span class="label">Niño
+                            3</span><span class="value" id="val-nino3">--
+                            °C</span></div>
+                    <div class="metric w-45 p-2 rounded" id="block-nino4"
+                        style="padding: 8px; border-radius: 8px; transition: background 0.3s;"><span class="label">Niño
+                            4</span><span class="value" id="val-nino4">--
+                            °C</span></div>
+                </div>
+            </section>
+
+            <!-- Macro-Climáticos Card -->
+            <section class="card" id="macro-card">
+                <h3>🌍 Índices Macro-Climáticos (Atmósfera)</h3>
+                <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                    <div style="width: 48%;">
+                        <div style="margin-bottom: 10px;">
+                            <span class="label"
+                                style="font-size: 10px; line-height: 1.2; display: block; margin-bottom: 2px;">ÍNDICE DE
+                                OSCILACIÓN DEL SUR<br>(SOI) PROXY</span>
+                            <span class="value" id="val-soi" style="font-size: 22px; font-weight: bold;">-- hPa</span>
+                        </div>
+                        <div>
+                            <span class="label"
+                                style="font-size: 10px; line-height: 1.2; display: block; margin-bottom: 2px;">PRESIÓN<br>DARWIN</span>
+                            <span class="value" id="val-darwin"
+                                style="font-size: 14px; font-weight: bold;">--<br>hPa</span>
+                        </div>
+                    </div>
+                    <div style="width: 48%;">
+                        <div style="margin-bottom: 10px;">
+                            <span class="label"
+                                style="font-size: 10px; line-height: 1.2; display: block; margin-bottom: 2px;">PRESIÓN<br>TAHITÍ</span>
+                            <span class="value" id="val-tahiti"
+                                style="font-size: 14px; font-weight: bold;">--<br>hPa</span>
+                        </div>
+                        <div style="margin-top: 20px; text-align: center;">
+                            <span id="val-enso-status"
+                                style="color: #c084fc; font-weight: bold; font-size: 11px; line-height: 1.2; display: block; text-transform: uppercase;">--</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Impacto Meteorológico Card -->
+            <section class="card" id="meteo-card">
+                <h3>🌧️ Impacto Meteorológico (Costa)</h3>
+                <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                    <div style="width: 48%;">
+                        <div style="margin-bottom: 10px;">
+                            <span class="label"
+                                style="font-size: 10px; line-height: 1.2; display: block; margin-bottom: 2px;">LLUVIA
+                                SATELITAL<br>(NASA GPM)</span>
+                            <span class="value" id="val-gpm-rain"
+                                style="font-size: 18px; font-weight: bold; color: #60a5fa;">-- mm/día</span>
+                        </div>
+                        <div>
+                            <span class="label"
+                                style="font-size: 10px; line-height: 1.2; display: block; margin-bottom: 2px;">VIENTOS
+                                (METEO)</span>
+                            <span class="value" id="val-meteo-wind" style="font-size: 18px; font-weight: bold;">--
+                                m/s</span>
+                        </div>
+                    </div>
+                    <div style="width: 48%;">
+                        <div style="margin-bottom: 10px;">
+                            <span class="label"
+                                style="font-size: 10px; line-height: 1.2; display: block; margin-bottom: 2px;">PREC.
+                                LOCAL<br>(METEO)</span>
+                            <span class="value" id="val-meteo-rain" style="font-size: 18px; font-weight: bold;">--
+                                mm</span>
+                        </div>
+                        <div style="margin-top: 10px;">
+                            <!-- <span class="label" style="font-size: 10px; line-height: 1.2; display: block; margin-bottom: 2px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 5px;">ESTACIÓN INAMHI<br>(GYE)</span> -->
+                            <!-- <span id="val-inamhi-rain"
+                                style="color: #f87171; font-weight: bold; font-size: 14px; display: block;">--
+                                mm/24h</span> -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Estaciones INAMHI Card -->
+            <section class="card" id="inamhi-card">
+                <h3>📡 Estaciones INAMHI (Guayas)</h3>
+                <div id="inamhi-list"
+                    style="margin-top: 10px; max-height: 150px; overflow-y: auto; padding-right: 5px;">
+                    <div style="text-align: center; color: #94a3b8; font-size: 12px; margin-top: 20px;">Cargando
+                        estaciones...</div>
+                </div>
+            </section>
+
+            <!-- Mareas Card -->
+            <section class="card alert" id="tide-card">
+                <h3>🌊 Riesgo de Marejada</h3>
+                <div class="metric-single">
+                    <span class="value" id="val-surge">-- m</span>
+                    <span class="label" id="val-surge-desc">Estado Normal</span>
+                </div>
+                <div class="metrics mt-2">
+                    <div class="metric w-45"><span class="label">Pleamar</span><span class="value text-sm"
+                            id="val-pleamar">-- m</span></div>
+                    <div class="metric w-45"><span class="label">Bajamar</span><span class="value text-sm"
+                            id="val-bajamar">-- m</span></div>
+                </div>
+            </section>
+
+            <!-- Embalse Card (Mejora 3) -->
+            <section class="card" id="embalse-card">
+                <h3>💧 Embalse Daule-Peripa</h3>
+                <div class="metrics">
+                    <div class="metric w-45"><span class="label">Cota Actual</span><span class="value text-sm"
+                            id="val-cota-embalse">-- m</span></div>
+                    <div class="metric w-45"><span class="label">Caudal</span><span class="value text-sm"
+                            id="val-caudal-embalse">-- m³/s</span></div>
+                </div>
+                <div id="embalse-alert" class="mt-2 text-sm font-bold"></div>
+            </section>
+
+        </div>
+
+        <!-- Tarjetas Locales (Visibles solo en Vista Local) -->
+        <div id="local-cards" class="hidden">
+
+
+            <!-- Gauge de Riesgo Global (Mejora 5) -->
+            <section class="card text-center" id="global-risk-card">
+                <h3>Nivel de Riesgo (Guayaquil)</h3>
+                <div class="gauge-container">
+                    <canvas id="globalRiskGauge"></canvas>
+                </div>
+                <p id="global-risk-text" class="font-bold mt-2">Calculando...</p>
+            </section>
+
+
+            <!-- Pronostico INAMHI Card -->
+            <section class="card" id="pronostico-card">
+                <h3>🌤️ Pronóstico INAMHI (Guayaquil)</h3>
+                <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                    <div style="width: 48%;">
+                        <div style="margin-bottom: 10px;">
+                            <span class="label"
+                                style="font-size: 10px; line-height: 1.2; display: block; margin-bottom: 2px;">TEMP. MÍN
+                                / MÁX</span>
+                            <span class="value" id="val-inamhi-temp"
+                                style="font-size: 18px; font-weight: bold; color: #fbbf24;">-- / -- °C</span>
+                        </div>
+                        <div>
+                            <span class="label"
+                                style="font-size: 10px; line-height: 1.2; display: block; margin-bottom: 2px;">RADIACIÓN
+                                UV</span>
+                            <span class="value" id="val-inamhi-uv" style="font-size: 18px; font-weight: bold;">--</span>
+                        </div>
+                    </div>
+                    <div style="width: 48%;">
+                        <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+                            <img id="val-inamhi-icon" src="" alt="icon"
+                                style="width: 32px; height: 32px; display: none;">
+                            <div>
+                                <span class="label"
+                                    style="font-size: 10px; line-height: 1.2; display: block; margin-bottom: 2px;">CONDICIÓN
+                                    (Tarde)</span>
+                                <span class="value" id="val-inamhi-cond"
+                                    style="font-size: 12px; font-weight: bold;">--</span>
+                            </div>
+                        </div>
+                        <div style="margin-top: 10px;">
+                            <span class="label"
+                                style="font-size: 10px; line-height: 1.2; display: block; margin-bottom: 2px;">LLUVIA
+                                ESPERADA</span>
+                            <span id="val-inamhi-lluvia"
+                                style="font-weight: bold; font-size: 14px; display: block;">--</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+
+            <!-- Panel de Simulación (Escenario Combinado) -->
+            <section class="card" id="simulador-card"
+                style="border: 1px solid #38bdf8; background: rgba(15, 23, 42, 0.9);">
+                <h3 style="color:#38bdf8; margin-bottom:10px;">⚙️ Simulador (What-If)</h3>
+                <div style="margin-top:10px;">
+                    <label style="font-size:12px; font-weight:bold;">Lluvia Acum. 24h: <span id="sim-rain-val"
+                            style="color:#38bdf8;">0</span> mm</label>
+                    <input type="range" id="sim-rain" min="0" max="200" value="0"
+                        style="width:100%; accent-color: #38bdf8;">
+                </div>
+                <div style="margin-top:10px;">
+                    <label style="font-size:12px; font-weight:bold;">Nivel Marea: <span id="sim-tide-val"
+                            style="color:#38bdf8;">0</span> m</label>
+                    <input type="range" id="sim-tide" min="0" max="5" step="0.1" value="0"
+                        style="width:100%; accent-color: #38bdf8;">
+                </div>
+                <div style="margin-top:10px;">
+                    <label style="font-size:12px; font-weight:bold;">Desfogue Embalse: <span id="sim-dam-val"
+                            style="color:#38bdf8;">0</span> m³/s</label>
+                    <input type="range" id="sim-dam" min="0" max="2000" step="10" value="0"
+                        style="width:100%; accent-color: #38bdf8;">
+                </div>
+                <button id="btn-simular"
+                    style="margin-top:15px; width:100%; padding:8px; background:#38bdf8; color:#0f172a; border:none; border-radius:4px; font-weight:bold; cursor:pointer; transition: 0.2s;">⚡
+                    Proyectar Impacto Manual</button>
+                <button id="btn-simular-historico"
+                    style="margin-top:5px; width:100%; padding:8px; background:#ef4444; color:#ffffff; border:none; border-radius:4px; font-weight:bold; cursor:pointer; transition: 0.2s;">🔥
+                    Simular El Niño 1997/98</button>
+                <button id="btn-reset-sim"
+                    style="margin-top:5px; width:100%; padding:8px; background:transparent; color:#94a3b8; border:1px solid #475569; border-radius:4px; font-size:11px; cursor:pointer; transition: 0.2s;">🔄
+                    Volver a Tiempo Real</button>
+            </section>
+        </div> <!-- Fin de local-cards -->
+    </div> <!-- Fin de dashboard-sidebar -->
+
+    <!-- Modal para Gráficos Históricos (Mejora 2) -->
+    <div id="chart-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="chart-modal-title">Histórico de Riesgo</h3>
+                <button id="close-modal-btn" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <canvas id="historyChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    <!-- <script src="config.js"></script> -->
+    <script src="app.js?v=8"></script>
+</body>
+
+</html>
