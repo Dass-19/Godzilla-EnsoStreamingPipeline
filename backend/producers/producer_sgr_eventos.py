@@ -1,14 +1,14 @@
+"""
+Script de Ingesta para SGR Eventos de Lluvia.
+Consulta la API de FeatureServer de Gestión de Riesgos para obtener eventos
+de lluvia en cantones clave de la cuenca del Guayas (Guayaquil, Daule, etc.).
+"""
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from common.kafka_client import build_producer, send_record, run_loop
+from common.kafka_client import build_producer, run_loop
 
-import os
 import json
 import urllib.request
 import urllib.parse
-import time
 
 def fetch_sgr_events():
     print("[*] Descargando eventos de lluvia (SGR)...")

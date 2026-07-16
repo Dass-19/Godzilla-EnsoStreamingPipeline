@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Script de Ingesta para NASA POWER.
 Descarga datos meteorológicos y de radiación para medir impactos locales de El Niño.
@@ -6,17 +5,12 @@ Variables: Temperatura, Precipitación, Vientos, Presión y Radiación Solar en 
 """
 
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from common.kafka_client import build_producer, send_record, run_loop
+from common.kafka_client import build_producer, run_loop
 
 import requests
-import json
 import datetime
 
 ENDPOINT = "https://power.larc.nasa.gov/api/temporal/daily/point"
-OUTPUT_FILE = "nasa_power_data.json"
 
 def test_connection():
     print("[*] Probando conexión con NASA POWER...")

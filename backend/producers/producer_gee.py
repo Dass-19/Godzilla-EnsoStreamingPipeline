@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Script de Ingesta para Google Earth Engine (GEE).
 Extrae datos reales de temperatura promedio (SST) y Anomalías Térmicas (ANOM)
@@ -9,14 +8,11 @@ Requiere autenticación previa (earthengine authenticate).
 """
 
 
-import sys
 import os
-from common.kafka_client import build_producer, send_record, run_loop
+from common.kafka_client import build_producer, run_loop
 import json
 import datetime
 import traceback
-
-OUTPUT_FILE = "gee_data.json"
 
 try:
     # pyrefly: ignore [missing-import]

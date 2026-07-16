@@ -24,7 +24,6 @@ ciclo"), que es semánticamente correcto para una fuente event-driven.
 """
 
 import re
-from datetime import datetime, timedelta, timezone
 
 import requests
 

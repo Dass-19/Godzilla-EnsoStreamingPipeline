@@ -15,6 +15,7 @@ fetch_fn() debe retornar una lista de dicts (uno por medición/evento).
 
 import json
 import logging
+import os
 import time
 from datetime import datetime, timezone
 from typing import Callable, Iterable, Optional
@@ -27,9 +28,6 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 logger = logging.getLogger(__name__)
-
-
-import os
 
 def build_producer(bootstrap_servers: str = None) -> KafkaProducer:
     if bootstrap_servers is None:

@@ -1,14 +1,11 @@
-# -*- coding: utf-8 -*-
 """
 Script de Ingesta para OpenWeatherMap.
 Extrae datos meteorológicos actuales (temperatura, viento, nubes).
 """
 
 
-import sys
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from common.kafka_client import build_producer, send_record, run_loop
+from common.kafka_client import build_producer, run_loop
 
 import urllib.request
 import json
@@ -18,7 +15,6 @@ import traceback
 API_KEY = os.environ.get("OPENWEATHERMAP_API_KEY", "")
 CITY = "Guayaquil"
 COUNTRY = "EC"
-OUTPUT_FILE = "openweathermap_data.json"
 
 
 def fetch_weather():

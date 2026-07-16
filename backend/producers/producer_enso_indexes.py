@@ -4,17 +4,10 @@ Descarga Presión a Nivel del Mar de Tahití y Darwin para calcular un proxy del
 """
 
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from common.kafka_client import build_producer, send_record, run_loop
 
 import requests
-import json
 import datetime
-import traceback
-
-OUTPUT_FILE = "enso_indexes.json"
 
 # Coordenadas exactas
 TAHITI = {"lat": -17.65, "lon": -149.46}

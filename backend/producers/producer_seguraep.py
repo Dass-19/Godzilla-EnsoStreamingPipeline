@@ -1,11 +1,14 @@
-# https://seguraep.gob.ec/index.php/geoportal/mapadeeventos
-# scrapea los datos de la url
+"""
+Script de Ingesta para Segura EP.
+Scrapea y descarga capas de zonas inundables, zonas seguras, vías inundables,
+y sectores vulnerables por marea alta directamente a HDFS.
+"""
+
 import os
 import json
 import urllib.request
 import urllib.parse
 from hdfs import InsecureClient
-import socket
 
 
 LAYERS = [
