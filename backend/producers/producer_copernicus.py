@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Script de Ingesta para Copernicus Marine Service.
 Obtiene TODAS las variables oceanográficas clave para la predicción de El Niño:
@@ -10,17 +9,10 @@ Obtiene TODAS las variables oceanográficas clave para la predicción de El Niñ
 """
 
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from common.kafka_client import build_producer, send_record, run_loop
 
-import json
 import datetime
 import traceback
-import sys
-
-OUTPUT_FILE = "copernicus_data.json"
 
 # Datasets divididos por variable en la nueva arquitectura de Copernicus
 DATASETS = {

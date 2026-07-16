@@ -1,9 +1,15 @@
+"""
+Script de Ingesta para NOAA.
+Descarga y procesa índices mensuales de temperatura superficial del mar (SST)
+de El Niño (regiones 1+2, 3, 4 y 3.4) de la NOAA CPC.
+"""
+
 import requests
 import pandas as pd
 import io
 import datetime
 
-from common.kafka_client import build_producer, send_record, run_loop
+from common.kafka_client import build_producer, run_loop
 
 ENDPOINT = "https://www.cpc.ncep.noaa.gov/data/indices/ersst5.nino.mth.91-20.ascii"
 

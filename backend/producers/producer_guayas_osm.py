@@ -1,22 +1,12 @@
-
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from common.kafka_client import build_producer, send_record
-
-# -*- coding: utf-8 -*-
 """
 Script de Ingesta Geoespacial para OSM (Guayas).
 Extrae cuerpos de agua principales (ríos, esteros) y calles principales
 usando la API de Overpass para la provincia del Guayas.
 """
 
+from common.kafka_client import build_producer, send_record
 import requests
-import json
 import traceback
-import os
-
-OUTPUT_FILE = "guayas_osm.geojson"
 
 # overpass-api.de está devolviendo 406 a clientes "tipo bot" (requests, curl, QGIS)
 # desde 2024-2026 por un filtro anti-scraping. Usamos mirrors como alternativa.

@@ -1,3 +1,8 @@
+"""
+Script de ejecución para lanzar todos los productores Kafka en segundo plano.
+Monitorea los procesos y permite detenerlos coordinadamente con Ctrl+C.
+"""
+
 import subprocess
 import time
 import sys

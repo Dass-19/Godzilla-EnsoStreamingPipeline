@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Script de Ingesta para INAMHI.
 Descarga datos reales desde los endpoints del Visor Hidro-Meteorológico
@@ -6,18 +5,10 @@ y del servicio de Pronósticos de INAMHI.
 """
  
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from common.kafka_client import build_producer, send_record, run_loop
+from common.kafka_client import build_producer, run_loop
 
 import requests
-import json
 import datetime
-import traceback
-import os
-
-OUTPUT_FILE = "inamhi_data.json"
 
 # Endpoints REALES confirmados (no ArcGIS, no requieren login para GET público)
 ESTACIONES_URL = (

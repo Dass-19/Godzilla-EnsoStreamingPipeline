@@ -1,18 +1,12 @@
-# -*- coding: utf-8 -*-
 """
 Script de Ingesta para Boyas Oceanográficas (NDBC TAO Array).
 Extrae datos para las boyas 32320 (Niño 1+2 / Galápagos) y 32321 (Niño 3).
 """
 
-import sys
-import os
 import requests
-import json
 import datetime
 import random
-from common.kafka_client import build_producer, send_record, run_loop
-
-OUTPUT_FILE = "ndbc_buoys.json"
+from common.kafka_client import build_producer, run_loop
 
 BUOYS = [
     {"id": "32320", "name": "Boya TAO 95W (Galápagos)", "lat": 0.0, "lon": -95.0},
@@ -60,10 +54,6 @@ def ingest_data():
     if not records:
         return None
 
-    # Guardar copia local de respaldo
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-        json.dump(records, f, indent=4)
-        
     return records
 
 def run_producer():

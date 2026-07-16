@@ -1,3 +1,10 @@
+"""
+Trabajo de streaming con PySpark para procesar variables ENSO en tiempo real.
+Ingesta datos desde tópicos de Kafka, escribe datos crudos a HDFS en formato Parquet,
+calcula el índice de riesgo de inundación interactivo por sector en Guayaquil,
+y almacena los resultados procesados en HDFS.
+"""
+
 import os
 import json
 from pyspark.sql import DataFrame, SparkSession

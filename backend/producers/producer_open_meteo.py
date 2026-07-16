@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Script de Ingesta para Open-Meteo.
 Descarga variables atmosféricas clave de la región Niño 3.4 (Pacífico Central).
@@ -6,17 +5,12 @@ Variables: Temperatura, Precipitación, Vientos Alisios (Velocidad y Dirección)
 """
 
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from common.kafka_client import build_producer, send_record, run_loop
+from common.kafka_client import build_producer, run_loop
 
 import requests
-import json
 import datetime
 
 ENDPOINT = "https://archive-api.open-meteo.com/v1/archive"
-OUTPUT_FILE = "open_meteo_data.json"
 
 def test_connection():
     print("[*] Probando conexión con Open-Meteo...")
