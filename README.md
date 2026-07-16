@@ -7,7 +7,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 
-**Integrantes:** Daniel Suárez y Magno Barco
+**Integrantes:** [Daniel Suárez](https://github.com/Dass-19) y [Magno Barco](https://github.com/Rask78EC)
 
 Pipeline completo de datos (El Niño / Riesgo de inundación Guayaquil) utilizando contenedores para todo su ecosistema:
 **Productores (Fuentes Externas) -> Kafka -> Spark Structured Streaming -> HDFS -> API (FastAPI) -> Dashboard Frontend**
