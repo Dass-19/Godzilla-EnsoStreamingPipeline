@@ -34,6 +34,12 @@ PRODUCTORES_CONTINUOS = [
     "producer_inamhi.py",
     "producer_sgr_eventos.py",
     "producer_ndbc_buoys.py",
+    "producer_inamhi_precipitacion.py",
+    "producer_pronostico_precip.py",
+    "producer_marea_observada.py",
+    "producer_caudal_geoglows.py",
+    "producer_inamhi_nivel_rio.py",
+    "producer_sst_semanal.py",
 ]
 
 # Jobs que descargan un snapshot completo y terminan.

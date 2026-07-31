@@ -35,6 +35,8 @@ def fetch_osm_data():
     (
       way["waterway"="river"]({bbox});
       way["natural"="water"]({bbox});
+      node["amenity"~"hospital|clinic|school|shelter|fire_station"]({bbox});
+      way["amenity"~"hospital|clinic|school|shelter|fire_station"]({bbox});
     );
     out body;
     >;

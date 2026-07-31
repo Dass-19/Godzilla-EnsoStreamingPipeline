@@ -11,17 +11,35 @@ import logging
 import os
 
 from contracts import (
+    FUENTE_CAUDAL,
     FUENTE_EMBALSE,
     FUENTE_MAREA,
+    FUENTE_MAREA_OBSERVADA,
+    FUENTE_PRECIP_ESTACIONES,
+    FUENTE_PRECIP_PRONOSTICO,
     FUENTE_PRECIPITACION,
+    FUENTE_SST_SEMANAL,
+    TOPIC_CAUDAL,
     TOPIC_EMBALSE,
     TOPIC_MAREA,
+    TOPIC_MAREA_OBSERVADA,
+    TOPIC_PRECIP_ESTACIONES,
+    TOPIC_PRECIP_PRONOSTICO,
     TOPIC_PRECIPITACION,
+    TOPIC_SST_SEMANAL,
     Lectura,
+    LluviaEstacion,
+    parse_anomalia_nino12,
+    parse_caudal,
     parse_embalse,
+    parse_lluvia_estaciones,
     parse_marea,
+    parse_marea_observada,
     parse_precipitacion,
+    parse_pronostico_precip,
+    parse_saturacion_antecedente,
 )
+from interpolacion import interpolar_idw
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql.types import (
@@ -56,6 +74,9 @@ TRIGGER_INTERVAL = os.environ.get("TRIGGER_INTERVAL", "5 minutes")
 RESPALDO_MAREA_M = 1.8
 RESPALDO_EMBALSE_MSNM = 80.0
 RESPALDO_PRECIP_MM = 0.0
+RESPALDO_CAUDAL_M3S = 500.0
+RESPALDO_SATURACION_MM = 0.0
+RESPALDO_ANOMALIA_NINO12_C = 0.0
 
 TOPICS_A_FUENTES = {
     "gee-data": "gee",
@@ -66,12 +87,17 @@ TOPICS_A_FUENTES = {
     "enso-indexes": "enso_indexes",
     "inamhi-data": "inamhi",
     "sgr-eventos": "sgr_eventos",
-    # `seguraep-layers` no está incluido porque producer_seguraep escribe GeoJSON directo a HDFS.
     "guayas-osm": "guayas_osm",
     TOPIC_EMBALSE: FUENTE_EMBALSE,
     TOPIC_MAREA: FUENTE_MAREA,
     "alertas-sngr": "sngr_alertas",
     "ndbc-buoys": "ndbc_buoys",
+    TOPIC_PRECIP_ESTACIONES: FUENTE_PRECIP_ESTACIONES,
+    TOPIC_PRECIP_PRONOSTICO: FUENTE_PRECIP_PRONOSTICO,
+    TOPIC_MAREA_OBSERVADA: FUENTE_MAREA_OBSERVADA,
+    TOPIC_CAUDAL: FUENTE_CAUDAL,
+    "inamhi-nivel-rio": "inamhi_nivel_rio",
+    TOPIC_SST_SEMANAL: FUENTE_SST_SEMANAL,
 }
 
 ESQUEMA_RIESGO = StructType([
@@ -89,13 +115,26 @@ ESQUEMA_RIESGO = StructType([
     StructField("nivel_riesgo", StringType(), True),
     StructField("datos_completos", BooleanType(), True),
     StructField("epoch_id", LongType(), True),
+    StructField("precip_pronostico_24h_mm", DoubleType(), True),
+    StructField("marea_observada_m", DoubleType(), True),
+    StructField("caudal_rio_m3s", DoubleType(), True),
+    StructField("saturacion_antecedente_mm", DoubleType(), True),
+    StructField("origen_rio", StringType(), True),
+    StructField("origen_suelo", StringType(), True),
+    StructField("origen_marea_obs", StringType(), True),
+    StructField("n_estaciones_precip", LongType(), True),
+    StructField("poblacion", LongType(), True),
+    StructField("exposicion_norm", DoubleType(), True),
+    StructField("indice_impacto", DoubleType(), True),
+    StructField("anomalia_nino12_c", DoubleType(), True),
+    StructField("origen_enso", StringType(), True),
 ])
 
 
 def build_spark() -> SparkSession:
     return (
         SparkSession.builder
-        .appName("enso-data-risk-pipeline")
+        .appName("GodzillaEnsoStreamingPipeline")
         .config("spark.hadoop.dfs.client.use.datanode.hostname", "true")
         .config("spark.sql.shuffle.partitions", "8")
         .getOrCreate()
@@ -137,56 +176,87 @@ def write_raw_zone(df: DataFrame, nombre_fuente: str):
 
 class EstadoFuentes:
     """
-    Últimos valores conocidos de las tres entradas dinámicas del índice.
-
-    Se actualiza con los mensajes de cada micro-batch. Cuando una fuente
-    todavía no aportó ningún dato, `lecturas()` devuelve el respaldo marcado
-    como `default`, y esa marca viaja hasta el parquet: una fila calculada con
-    tres respaldos deja de ser indistinguible de una fila real.
+    Últimos valores conocidos de todas las entradas dinámicas del índice.
     """
 
     def __init__(self):
         self._marea = None
         self._embalse = None
-        self._precip = None
+        self._precip_nasa = None
+        self._estaciones_inamhi: list[LluviaEstacion] = []
+        self._saturacion = None
+        self._pronostico_precip = None
+        self._marea_obs = None
+        self._caudal = None
+        self._anomalia_nino12 = None
 
     def actualizar(self, topic: str, payload: dict) -> None:
         if topic == TOPIC_MAREA:
-            valor = parse_marea(payload)
-            if valor is not None:
-                self._marea = valor
+            val = parse_marea(payload)
+            if val is not None:
+                self._marea = val
         elif topic == TOPIC_EMBALSE:
-            valor = parse_embalse(payload)
-            if valor is not None:
-                self._embalse = valor
+            val = parse_embalse(payload)
+            if val is not None:
+                self._embalse = val
         elif topic == TOPIC_PRECIPITACION:
-            valor = parse_precipitacion(payload)
-            if valor is not None:
-                self._precip = valor
+            val = parse_precipitacion(payload)
+            if val is not None:
+                self._precip_nasa = val
+        elif topic == TOPIC_PRECIP_ESTACIONES:
+            estaciones = parse_lluvia_estaciones(payload)
+            if estaciones:
+                self._estaciones_inamhi = estaciones
+            sat = parse_saturacion_antecedente(payload)
+            if sat is not None:
+                self._saturacion = sat
+        elif topic == TOPIC_PRECIP_PRONOSTICO:
+            val = parse_pronostico_precip(payload)
+            if val is not None:
+                self._pronostico_precip = val
+        elif topic == TOPIC_MAREA_OBSERVADA:
+            val = parse_marea_observada(payload)
+            if val is not None:
+                self._marea_obs = val
+        elif topic == TOPIC_CAUDAL:
+            val = parse_caudal(payload)
+            if val is not None:
+                self._caudal = val
+        elif topic == TOPIC_SST_SEMANAL:
+            val = parse_anomalia_nino12(payload)
+            if val is not None:
+                self._anomalia_nino12 = val
 
-    def lecturas(self) -> dict:
+    def lecturas(self, lat: float | None = None, lon: float | None = None) -> dict:
+        precip_val, n_est = None, 0
+        if lat is not None and lon is not None and self._estaciones_inamhi:
+            precip_val, n_est = interpolar_idw(self._estaciones_inamhi, lat, lon)
+
+        if precip_val is None:
+            precip_val = self._precip_nasa
+
         return {
-            "precip": Lectura.desde(
-                self._precip, RESPALDO_PRECIP_MM, "sin dato de NASA POWER",
-            ),
-            "marea": Lectura.desde(
-                self._marea, RESPALDO_MAREA_M, "sin dato de INOCAR",
-            ),
-            "embalse": Lectura.desde(
-                self._embalse, RESPALDO_EMBALSE_MSNM, "sin dato de CELEC",
-            ),
+            "precip": Lectura.desde(precip_val, RESPALDO_PRECIP_MM, "sin dato de lluvia"),
+            "marea": Lectura.desde(self._marea, RESPALDO_MAREA_M, "sin dato de INOCAR"),
+            "embalse": Lectura.desde(self._embalse, RESPALDO_EMBALSE_MSNM, "sin dato de CELEC"),
+            "marea_obs": Lectura.desde(self._marea_obs, self._marea if self._marea is not None else RESPALDO_MAREA_M, "sin dato IOC"),
+            "caudal": Lectura.desde(self._caudal, RESPALDO_CAUDAL_M3S, "sin dato GEOGLOWS"),
+            "suelo": Lectura.desde(self._saturacion, RESPALDO_SATURACION_MM, "sin dato INAMHI"),
+            "pronostico_precip": Lectura.desde(self._pronostico_precip, 0.0, "sin dato Open-Meteo"),
+            "enso": Lectura.desde(self._anomalia_nino12, RESPALDO_ANOMALIA_NINO12_C, "sin dato NOAA CPC"),
+            "n_estaciones": n_est,
         }
 
     def bootstrap(self, spark: SparkSession) -> None:
-        """
-        Rellena el estado leyendo el último registro ya persistido de cada
-        fuente. Solo se ejecuta una vez al arrancar, para no partir de
-        respaldos cuando el checkpoint ya consumió los mensajes históricos.
-        """
         fuentes = {
             TOPIC_MAREA: FUENTE_MAREA,
             TOPIC_EMBALSE: FUENTE_EMBALSE,
             TOPIC_PRECIPITACION: FUENTE_PRECIPITACION,
+            TOPIC_PRECIP_ESTACIONES: FUENTE_PRECIP_ESTACIONES,
+            TOPIC_PRECIP_PRONOSTICO: FUENTE_PRECIP_PRONOSTICO,
+            TOPIC_MAREA_OBSERVADA: FUENTE_MAREA_OBSERVADA,
+            TOPIC_CAUDAL: FUENTE_CAUDAL,
+            TOPIC_SST_SEMANAL: FUENTE_SST_SEMANAL,
         }
         for topic, fuente in fuentes.items():
             ruta = f"{HDFS_BASE}/raw/{fuente}"
@@ -208,23 +278,24 @@ class EstadoFuentes:
             except (ValueError, TypeError) as error:
                 logger.warning("bootstrap: json inválido en %s: %s", ruta, error)
 
-        estado = self.lecturas()
-        logger.info(
-            "bootstrap completo: precip=%s marea=%s embalse=%s",
-            estado["precip"], estado["marea"], estado["embalse"],
-        )
+        logger.info("bootstrap de estado de fuentes completado.")
 
 
 def calcular_riesgo_batch(spark: SparkSession, zonas: list, estado: EstadoFuentes):
-    """
-    Devuelve el callback de `foreachBatch` que actualiza el estado con los
-    mensajes del batch y escribe una fila de riesgo por zona.
-    """
-
     def _procesar(df_batch: DataFrame, epoch_id: int) -> None:
+        topics_riesgo = (
+            TOPIC_MAREA,
+            TOPIC_EMBALSE,
+            TOPIC_PRECIPITACION,
+            TOPIC_PRECIP_ESTACIONES,
+            TOPIC_PRECIP_PRONOSTICO,
+            TOPIC_MAREA_OBSERVADA,
+            TOPIC_CAUDAL,
+            TOPIC_SST_SEMANAL,
+        )
         filas_entrantes = (
             df_batch.select("topic", "json_str")
-            .where(F.col("topic").isin(TOPIC_MAREA, TOPIC_EMBALSE, TOPIC_PRECIPITACION))
+            .where(F.col("topic").isin(*topics_riesgo))
             .collect()
         )
         for fila in filas_entrantes:
@@ -235,36 +306,46 @@ def calcular_riesgo_batch(spark: SparkSession, zonas: list, estado: EstadoFuente
                     "payload no parseable en topic=%s: %s", fila["topic"], error,
                 )
 
-        lecturas = estado.lecturas()
-        precip, marea, embalse = lecturas["precip"], lecturas["marea"], lecturas["embalse"]
-
-        if not (precip.es_real and marea.es_real and embalse.es_real):
-            faltantes = [
-                nombre for nombre, lectura in lecturas.items() if not lectura.es_real
-            ]
-            logger.warning(
-                "epoch=%s calculando riesgo con respaldos para: %s",
-                epoch_id, ", ".join(faltantes),
-            )
-
-        datos_completos = all(lectura.es_real for lectura in lecturas.values())
-
         filas = []
         for zona in zonas:
+            lat = float(zona["lat_centroide"])
+            lon = float(zona["lon_centroide"])
+            lecturas = estado.lecturas(lat, lon)
+
+            precip = lecturas["precip"]
+            marea = lecturas["marea"]
+            embalse = lecturas["embalse"]
+            marea_obs = lecturas["marea_obs"]
+            caudal = lecturas["caudal"]
+            suelo = lecturas["suelo"]
+            pronostico = lecturas["pronostico_precip"]
+            enso = lecturas["enso"]
+            n_est = lecturas["n_estaciones"]
+            poblacion = int(zona.get("poblacion") or 0)
+
             resultado = calcular_indice_riesgo(
                 precip_24h_mm=precip.valor,
                 altura_marea_m=marea.valor,
                 nivel_embalse_msnm=embalse.valor,
                 cota_media_msnm=float(zona["cota_media_msnm"]),
-                pendiente_clase=zona["pendiente_clase"],
+                pendiente_clase=str(zona["pendiente_clase"]),
                 cercania_estero_m=float(zona["cercania_estero_m"]),
                 historicamente_inundable=bool(zona["historicamente_inundable"]),
+                caudal_rio_m3s=caudal.valor,
+                saturacion_antecedente_mm=suelo.valor,
+                anomalia_nino12_c=enso.valor,
+                poblacion=poblacion,
             )
+
+            datos_completos = (
+                precip.es_real and marea.es_real and caudal.es_real and suelo.es_real
+            )
+
             filas.append((
                 zona["zona_id"],
                 zona["nombre_sector"],
-                float(zona["lat_centroide"]),
-                float(zona["lon_centroide"]),
+                lat,
+                lon,
                 precip.valor,
                 marea.valor,
                 embalse.valor,
@@ -275,6 +356,19 @@ def calcular_riesgo_batch(spark: SparkSession, zonas: list, estado: EstadoFuente
                 resultado["nivel_riesgo"],
                 datos_completos,
                 int(epoch_id),
+                pronostico.valor,
+                marea_obs.valor,
+                caudal.valor,
+                suelo.valor,
+                caudal.origen,
+                suelo.origen,
+                marea_obs.origen,
+                int(n_est),
+                poblacion,
+                float(resultado["exposicion_norm"]),
+                float(resultado["indice_impacto"]),
+                enso.valor,
+                enso.origen,
             ))
 
         if not filas:
@@ -286,9 +380,6 @@ def calcular_riesgo_batch(spark: SparkSession, zonas: list, estado: EstadoFuente
             .withColumn("calculado_en", F.current_timestamp())
         )
 
-        # `append` no es idempotente: si Spark reintenta un epoch, sus filas se
-        # escriben dos veces. Por eso cada fila lleva `epoch_id`, y la API
-        # deduplica por (zona_id, epoch_id) al leer.
         (
             df_riesgo.write
             .mode("append")
@@ -309,8 +400,6 @@ def main() -> None:
         .option("inferSchema", "true")
         .csv(GEO_REF_PATH)
     )
-    # Son 10 zonas: traerlas al driver evita el RDD.map + isEmpty + inferencia
-    # de schema (tres pasadas de Spark sobre una tabla que cabe en memoria).
     zonas = [fila.asDict() for fila in geo_ref.collect()]
     logger.info("geo_ref cargado: %s zonas", len(zonas))
 
@@ -324,11 +413,18 @@ def main() -> None:
     for topic, fuente in TOPICS_A_FUENTES.items():
         write_raw_zone(df_por_topic[topic], fuente)
 
-    # El cálculo del riesgo solo necesita los tres tópicos que alimentan el
-    # índice; suscribir los 14 obligaba a deserializar payloads pesados
-    # (catálogo INAMHI, GeoJSON de OSM) en cada batch para descartarlos.
+    topics_riesgo = (
+        TOPIC_MAREA,
+        TOPIC_EMBALSE,
+        TOPIC_PRECIPITACION,
+        TOPIC_PRECIP_ESTACIONES,
+        TOPIC_PRECIP_PRONOSTICO,
+        TOPIC_MAREA_OBSERVADA,
+        TOPIC_CAUDAL,
+        TOPIC_SST_SEMANAL,
+    )
     df_riesgo_entrada = None
-    for topic in (TOPIC_MAREA, TOPIC_EMBALSE, TOPIC_PRECIPITACION):
+    for topic in topics_riesgo:
         df_topic = df_por_topic[topic]
         df_riesgo_entrada = (
             df_topic if df_riesgo_entrada is None else df_riesgo_entrada.union(df_topic)
@@ -343,7 +439,6 @@ def main() -> None:
         .start()
     )
 
-    # Termina si cualquiera de las consultas de streaming se detiene o falla.
     spark.streams.awaitAnyTermination()
 
 

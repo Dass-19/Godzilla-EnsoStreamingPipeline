@@ -52,9 +52,15 @@ export async function fetchHistoricoZona(zonaId) {
     return await res.json();
 }
 
-export async function fetchSimulacion(rain, tide, dam) {
-    const res = await fetch(`${CONFIG.API_BASE}escenario/simular?precip_24h_mm=${rain}&altura_marea_m=${tide}&nivel_embalse_msnm=${dam}`);
+export async function fetchSimulacion(rain, tide, caudal = 500, suelo = 0, nino12 = 0) {
+    const res = await fetch(`${CONFIG.API_BASE}escenario/simular?precip_24h_mm=${rain}&altura_marea_m=${tide}&caudal_rio_m3s=${caudal}&saturacion_antecedente_mm=${suelo}&anomalia_nino12_c=${nino12}`);
     if (!res.ok) throw new Error("Error en simulación");
+    return await res.json();
+}
+
+export async function fetchPronosticoRiesgo(horizonteH = 24) {
+    const res = await fetch(`${CONFIG.API_BASE}riesgo/pronostico?horizonte_h=${horizonteH}`);
+    if (!res.ok) throw new Error("Error en pronóstico de riesgo");
     return await res.json();
 }
 

@@ -174,13 +174,77 @@ def test_lectura_marca_el_dato_de_la_fuente_como_real():
 
 
 def test_lectura_distingue_un_cero_real_de_un_respaldo_de_cero():
-    """
-    El caso que motiva la columna de procedencia: 0 mm de lluvia y "no hay
-    dato de lluvia" producen el mismo número, y sin la marca son
-    indistinguibles en el parquet.
-    """
     real = Lectura.desde(0.0, respaldo=0.0)
     respaldo = Lectura.desde(None, respaldo=0.0)
 
     assert real.valor == respaldo.valor
     assert real.origen != respaldo.origen
+
+
+# --- Nuevos Contratos de Fuentes -----------------------------------------
+
+from contracts import (
+    construir_caudal,
+    construir_lluvia_estacion,
+    construir_marea_observada,
+    construir_pronostico_precip,
+    construir_sst_semanal,
+    parse_anomalia_nino12,
+    parse_caudal,
+    parse_lluvia_estaciones,
+    parse_marea_observada,
+    parse_pronostico_precip,
+    parse_saturacion_antecedente,
+)
+
+
+def test_round_trip_lluvia_estaciones_y_saturacion():
+    est1 = construir_lluvia_estacion(
+        id_estacion="M001",
+        codigo="M001",
+        lat=-2.19,
+        lon=-79.89,
+        precip_24h_mm=35.0,
+        fecha_ultimo_dato="2026-07-31 10:00:00",
+        serie_diaria_15d=[{"fecha": "2026-07-30", "precip_mm": 10.0}],
+    )
+    payload = {"estaciones": [est1]}
+
+    estaciones_parsed = parse_lluvia_estaciones(payload)
+    assert len(estaciones_parsed) == 1
+    assert estaciones_parsed[0].precip_24h_mm == 35.0
+
+    api_sat = parse_saturacion_antecedente(payload, k=0.9)
+    assert api_sat == pytest.approx(9.0)
+
+
+def test_round_trip_pronostico_precip():
+    payload = construir_pronostico_precip(
+        fecha="2026-08-01",
+        lat=-2.19,
+        lon=-79.89,
+        precip_sum_mm=25.4,
+        precip_probability_max=85.0,
+        horizonte_h=24,
+    )
+    assert parse_pronostico_precip(payload) == pytest.approx(25.4)
+
+
+def test_round_trip_marea_observada():
+    payload = construir_marea_observada(altura_m=2.15, estacion="gyer")
+    assert parse_marea_observada(payload) == pytest.approx(2.15)
+
+
+def test_round_trip_caudal():
+    payload = construir_caudal(river_id=670078246, caudal_m3s=720.5, tramo="Guayas")
+    assert parse_caudal(payload) == pytest.approx(720.5)
+
+
+def test_round_trip_sst_semanal():
+    payload = construir_sst_semanal(
+        fecha_semana="27JUL2026",
+        sst_nino12_c=26.5,
+        anomalia_nino12_c=2.1,
+    )
+    assert parse_anomalia_nino12(payload) == pytest.approx(2.1)
+

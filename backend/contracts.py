@@ -22,15 +22,40 @@ ORIGEN_DEFAULT = "default"
 # NASA POWER usa -999 como centinela de "sin dato" en vez de null.
 CENTINELA_NASA_POWER = -999.0
 
-# Topics de los que se leen las tres entradas dinámicas del índice.
+# Topics de los que se leen las entradas dinámicas del índice.
 TOPIC_MAREA = "mareas-inocar"
 TOPIC_EMBALSE = "nivel-embalse-celec"
 TOPIC_PRECIPITACION = "nasa-power-data"
+TOPIC_PRECIP_ESTACIONES = "inamhi-precipitacion"
+TOPIC_PRECIP_PRONOSTICO = "pronostico-precipitacion"
+TOPIC_MAREA_OBSERVADA = "marea-observada"
+TOPIC_CAUDAL = "caudal-geoglows"
+TOPIC_SST_SEMANAL = "sst-semanal"
 
 # Nombres de fuente (= carpeta bajo /enso_data/raw/) correspondientes.
 FUENTE_MAREA = "inocar_mareas"
 FUENTE_EMBALSE = "celec_embalse"
 FUENTE_PRECIPITACION = "nasa_power"
+FUENTE_PRECIP_ESTACIONES = "inamhi_precipitacion"
+FUENTE_PRECIP_PRONOSTICO = "pronostico_precipitacion"
+FUENTE_MAREA_OBSERVADA = "marea_observada"
+FUENTE_CAUDAL = "caudal_geoglows"
+FUENTE_SST_SEMANAL = "sst_semanal"
+
+
+@dataclass(frozen=True)
+class LluviaEstacion:
+    """
+    Estación meteorológica de INAMHI con acumulación reciente en mm.
+    """
+
+    id_estacion: str
+    codigo: str
+    lat: float
+    lon: float
+    precip_24h_mm: float
+    fecha_ultimo_dato: str
+
 
 
 @dataclass(frozen=True)
@@ -198,3 +223,240 @@ def parse_precipitacion(payload: dict) -> float | None:
         return valor
 
     return None
+
+
+# ---------------------------------------------------------------------------
+# Estaciones INAMHI — Precipitación observada (topic `inamhi-precipitacion`)
+# ---------------------------------------------------------------------------
+
+def construir_lluvia_estacion(
+    id_estacion: str,
+    codigo: str,
+    lat: float,
+    lon: float,
+    precip_24h_mm: float,
+    fecha_ultimo_dato: str,
+    serie_diaria_15d: list[dict] | None = None,
+) -> dict:
+    """Payload de una estación meteorológica de INAMHI."""
+    return {
+        "id_estacion": str(id_estacion),
+        "codigo": str(codigo),
+        "lat": float(lat),
+        "lon": float(lon),
+        "precip_24h_mm": float(precip_24h_mm),
+        "fecha_ultimo_dato": str(fecha_ultimo_dato),
+        "serie_diaria_15d": serie_diaria_15d or [],
+    }
+
+
+def parse_lluvia_estaciones(
+    payload: dict, max_antiguedad_horas: int = 72
+) -> list[LluviaEstacion]:
+    """
+    Lista de estaciones con lluvia reciente válida.
+
+    Descarta estaciones sin coordenadas, valores negativos o cuya fecha del
+    último dato exceda `max_antiguedad_horas`.
+    """
+    if not isinstance(payload, dict):
+        return []
+
+    estaciones = payload.get("estaciones")
+    if not isinstance(estaciones, list):
+        return []
+
+    resultado: list[LluviaEstacion] = []
+    for est in estaciones:
+        if not isinstance(est, dict):
+            continue
+        lat = _a_float(est.get("lat"))
+        lon = _a_float(est.get("lon"))
+        precip = _a_float(est.get("precip_24h_mm"))
+
+        if lat is None or lon is None or precip is None or precip < 0:
+            continue
+
+        id_est = str(est.get("id_estacion", ""))
+        cod = str(est.get("codigo", ""))
+        fecha = str(est.get("fecha_ultimo_dato", ""))
+
+        resultado.append(
+            LluviaEstacion(
+                id_estacion=id_est,
+                codigo=cod,
+                lat=lat,
+                lon=lon,
+                precip_24h_mm=precip,
+                fecha_ultimo_dato=fecha,
+            )
+        )
+
+    return resultado
+
+
+def parse_saturacion_antecedente(payload: dict, k: float = 0.9) -> float | None:
+    """
+    Índice de Precipitación Antecedente (API = Σ k^i * P_i) sobre 15 días.
+
+    Proxy empírico de saturación de suelo. Devuelve el máximo API entre las
+    estaciones de INAMHI válidas presentes en el payload.
+    """
+    if not isinstance(payload, dict):
+        return None
+
+    estaciones = payload.get("estaciones")
+    if not isinstance(estaciones, list):
+        return None
+
+    max_api: float | None = None
+    for est in estaciones:
+        if not isinstance(est, dict):
+            continue
+        serie = est.get("serie_diaria_15d")
+        if not isinstance(serie, list) or not serie:
+            continue
+
+        api_valor = 0.0
+        dias_contados = 0
+        for i, dia in enumerate(serie, start=1):
+            if not isinstance(dia, dict):
+                continue
+            precip = _a_float(dia.get("precip_mm"))
+            if precip is None or precip < 0:
+                continue
+            api_valor += (k**i) * precip
+            dias_contados += 1
+
+        if dias_contados > 0:
+            if max_api is None or api_valor > max_api:
+                max_api = api_valor
+
+    return max_api
+
+
+# ---------------------------------------------------------------------------
+# Pronóstico de precipitación — Open-Meteo (topic `pronostico-precipitacion`)
+# ---------------------------------------------------------------------------
+
+def construir_pronostico_precip(
+    fecha: str,
+    lat: float,
+    lon: float,
+    precip_sum_mm: float,
+    precip_probability_max: float | None = None,
+    horizonte_h: int = 24,
+) -> dict:
+    """Payload de pronóstico de lluvia de Open-Meteo."""
+    res = {
+        "fecha": str(fecha),
+        "lat": float(lat),
+        "lon": float(lon),
+        "horizonte_h": int(horizonte_h),
+        "precip_sum_mm": float(precip_sum_mm),
+    }
+    if precip_probability_max is not None:
+        res["precip_probability_max"] = float(precip_probability_max)
+    return res
+
+
+def parse_pronostico_precip(
+    payload: dict, horizonte_h: int = 24
+) -> float | None:
+    """Acumulado de lluvia pronosticado en mm para el horizonte pedido."""
+    if not isinstance(payload, dict):
+        return None
+    val = _a_float(payload.get("precip_sum_mm"))
+    if val is None or val < 0:
+        return None
+    return val
+
+
+# ---------------------------------------------------------------------------
+# Marea observada — Mareógrafo IOC `gyer` (topic `marea-observada`)
+# ---------------------------------------------------------------------------
+
+def construir_marea_observada(
+    altura_m: float,
+    estacion: str = "gyer",
+    puerto: str = "Guayaquil - Rio Guayas",
+    sensor: str = "radar",
+    fecha_utc: str | None = None,
+) -> dict:
+    """Payload de marea real observada por sensor mareográfico IOC."""
+    return {
+        "estacion": estacion,
+        "puerto": puerto,
+        "sensor": sensor,
+        "altura_marea_m": round(float(altura_m), 3),
+        "fecha_utc": fecha_utc,
+    }
+
+
+def parse_marea_observada(payload: dict) -> float | None:
+    """Altura de marea observada en metros, o None si no viene en el payload."""
+    if not isinstance(payload, dict):
+        return None
+    return _a_float(payload.get("altura_marea_m"))
+
+
+# ---------------------------------------------------------------------------
+# Caudal fluvial — GEOGLOWS (topic `caudal-geoglows`)
+# ---------------------------------------------------------------------------
+
+def construir_caudal(
+    river_id: int,
+    caudal_m3s: float,
+    tramo: str = "Guayas",
+    caudal_lower_m3s: float | None = None,
+    caudal_upper_m3s: float | None = None,
+) -> dict:
+    """Payload de caudal de río de GEOGLOWS v2 (ECMWF)."""
+    res = {
+        "river_id": int(river_id),
+        "tramo": str(tramo),
+        "caudal_m3s": round(float(caudal_m3s), 2),
+    }
+    if caudal_lower_m3s is not None:
+        res["caudal_lower_m3s"] = round(float(caudal_lower_m3s), 2)
+    if caudal_upper_m3s is not None:
+        res["caudal_upper_m3s"] = round(float(caudal_upper_m3s), 2)
+    return res
+
+
+def parse_caudal(payload: dict) -> float | None:
+    """Caudal fluvial del río Guayas en m3/s, o None si no está presente."""
+    if not isinstance(payload, dict):
+        return None
+    val = _a_float(payload.get("caudal_m3s"))
+    if val is None or val < 0:
+        return None
+    return val
+
+
+# ---------------------------------------------------------------------------
+# SST Semanal — NOAA CPC `wksst9120.for` (topic `sst-semanal`)
+# ---------------------------------------------------------------------------
+
+def construir_sst_semanal(
+    fecha_semana: str,
+    sst_nino12_c: float,
+    anomalia_nino12_c: float,
+    **otras_regiones: Any,
+) -> dict:
+    """Payload de temperatura e índice de anomalía semanal de NOAA CPC."""
+    res = {
+        "fecha_semana": str(fecha_semana),
+        "sst_nino12_c": round(float(sst_nino12_c), 2),
+        "anomalia_nino12_c": round(float(anomalia_nino12_c), 2),
+    }
+    res.update(otras_regiones)
+    return res
+
+
+def parse_anomalia_nino12(payload: dict) -> float | None:
+    """Anomalía de temperatura en °C de la región Niño 1+2."""
+    if not isinstance(payload, dict):
+        return None
+    return _a_float(payload.get("anomalia_nino12_c"))
+

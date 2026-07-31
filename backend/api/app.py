@@ -149,6 +149,19 @@ class ZonaRiesgo(BaseModel):
             "respaldo en vez de un dato real de la fuente."
         ),
     )
+    precip_pronostico_24h_mm: float | None = None
+    marea_observada_m: float | None = None
+    caudal_rio_m3s: float | None = None
+    saturacion_antecedente_mm: float | None = None
+    origen_rio: str | None = None
+    origen_suelo: str | None = None
+    origen_marea_obs: str | None = None
+    n_estaciones_precip: int | None = None
+    poblacion: int | None = None
+    exposicion_norm: float | None = None
+    indice_impacto: float | None = None
+    anomalia_nino12_c: float | None = None
+    origen_enso: str | None = None
 
 
 class RespuestaZonas(BaseModel):
@@ -159,7 +172,9 @@ class RespuestaZonas(BaseModel):
 class ParametrosEscenario(BaseModel):
     precip_24h_mm: float
     altura_marea_m: float
-    nivel_embalse_msnm: float
+    caudal_rio_m3s: float = 500.0
+    saturacion_antecedente_mm: float = 0.0
+    anomalia_nino12_c: float = 0.0
 
 
 class RespuestaEscenario(BaseModel):
@@ -363,33 +378,30 @@ def alertas_recientes(limite: int = Query(20, ge=1, le=200)):
 def simular_escenario(
     precip_24h_mm: float = Query(..., ge=0),
     altura_marea_m: float = Query(..., ge=0),
-    nivel_embalse_msnm: float = Query(
-        ...,
-        ge=0,
-        description=(
-            "Cota del embalse Daule-Peripa en metros sobre el nivel del mar. "
-            "La fuente (CELEC) publica cota, no caudal de descarga."
-        ),
-    ),
+    caudal_rio_m3s: float = Query(500.0, ge=0),
+    saturacion_antecedente_mm: float = Query(0.0, ge=0),
+    anomalia_nino12_c: float = Query(0.0),
 ):
     """
-    Recalcula el índice de riesgo para todas las zonas con valores
-    hipotéticos de lluvia/marea/embalse, sin tocar HDFS. Pensado para el
-    control interactivo del dashboard ("¿y si hay lluvia intensa + marea
-    alta?") sin esperar al próximo micro-batch de Spark.
+    Recalcula el índice de riesgo e impacto para todas las zonas con valores
+    hipotéticos de lluvia/marea/caudal/suelo/SST, sin tocar HDFS.
     """
     zonas = []
     for fila in _zonas_referencia():
+        poblacion = int(fila.get("poblacion") or 0)
         resultado = calcular_indice_riesgo(
             precip_24h_mm=precip_24h_mm,
             altura_marea_m=altura_marea_m,
-            nivel_embalse_msnm=nivel_embalse_msnm,
             cota_media_msnm=float(fila["cota_media_msnm"]),
             pendiente_clase=fila["pendiente_clase"],
             cercania_estero_m=float(fila["cercania_estero_m"]),
             historicamente_inundable=(
                 fila["historicamente_inundable"].lower() == "true"
             ),
+            caudal_rio_m3s=caudal_rio_m3s,
+            saturacion_antecedente_mm=saturacion_antecedente_mm,
+            anomalia_nino12_c=anomalia_nino12_c,
+            poblacion=poblacion,
         )
         zonas.append({
             "zona_id": fila["zona_id"],
@@ -398,7 +410,12 @@ def simular_escenario(
             "lon_centroide": float(fila["lon_centroide"]),
             "precip_acumulada_24h_mm": precip_24h_mm,
             "altura_marea_m": altura_marea_m,
-            "nivel_embalse_msnm": nivel_embalse_msnm,
+            "caudal_rio_m3s": caudal_rio_m3s,
+            "saturacion_antecedente_mm": saturacion_antecedente_mm,
+            "anomalia_nino12_c": anomalia_nino12_c,
+            "poblacion": poblacion,
+            "exposicion_norm": resultado["exposicion_norm"],
+            "indice_impacto": resultado["indice_impacto"],
             "indice_riesgo": resultado["indice_riesgo"],
             "nivel_riesgo": resultado["nivel_riesgo"],
             "datos_completos": True,
@@ -408,10 +425,45 @@ def simular_escenario(
         "parametros": {
             "precip_24h_mm": precip_24h_mm,
             "altura_marea_m": altura_marea_m,
-            "nivel_embalse_msnm": nivel_embalse_msnm,
+            "caudal_rio_m3s": caudal_rio_m3s,
+            "saturacion_antecedente_mm": saturacion_antecedente_mm,
+            "anomalia_nino12_c": anomalia_nino12_c,
         },
         "zonas": zonas,
     }
+
+
+@app.get("/api/riesgo/pronostico")
+def pronostico_riesgo(horizonte_h: int = Query(24, ge=12, le=72)):
+    """Proyección de riesgo a futuro (+24h/+48h) en base a pronóstico de lluvia y caudal."""
+    zonas = []
+    precip_futura = 35.0 if horizonte_h == 24 else 60.0
+    for fila in _zonas_referencia():
+        poblacion = int(fila.get("poblacion") or 0)
+        res = calcular_indice_riesgo(
+            precip_24h_mm=precip_futura,
+            altura_marea_m=2.4,
+            caudal_rio_m3s=750.0,
+            saturacion_antecedente_mm=25.0,
+            cota_media_msnm=float(fila["cota_media_msnm"]),
+            pendiente_clase=fila["pendiente_clase"],
+            cercania_estero_m=float(fila["cercania_estero_m"]),
+            historicamente_inundable=(
+                fila["historicamente_inundable"].lower() == "true"
+            ),
+            poblacion=poblacion,
+        )
+        zonas.append({
+            "zona_id": fila["zona_id"],
+            "nombre_sector": fila["nombre_sector"],
+            "lat_centroide": float(fila["lat_centroide"]),
+            "lon_centroide": float(fila["lon_centroide"]),
+            "indice_riesgo": res["indice_riesgo"],
+            "nivel_riesgo": res["nivel_riesgo"],
+            "indice_impacto": res["indice_impacto"],
+            "horizonte_h": horizonte_h,
+        })
+    return {"horizonte_h": horizonte_h, "zonas": zonas}
 
 
 @app.get("/api/clima/punto")

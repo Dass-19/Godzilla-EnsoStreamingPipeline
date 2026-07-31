@@ -138,6 +138,12 @@ services:
       kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic openweathermap-data
       kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic sgr-eventos
       kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic ndbc-buoys
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic inamhi-precipitacion
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic pronostico-precipitacion
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic marea-observada
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic caudal-geoglows
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic inamhi-nivel-rio
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic sst-semanal
       "
     networks:
       - enso_net
@@ -244,7 +250,7 @@ services:
         --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1 \\
         --conf spark.driver.extraJavaOptions=\"-Divy.cache.dir=/tmp -Divy.home=/tmp\" \\
         --conf spark.hadoop.dfs.client.use.datanode.hostname=true \\
-        --py-files /opt/spark-app/risk_index.py,/opt/spark-app/contracts.py \\
+        --py-files /opt/spark-app/risk_index.py,/opt/spark-app/contracts.py,/opt/spark-app/interpolacion.py \\
         /opt/spark-app/spark_streaming_job.py
       "
     networks:
