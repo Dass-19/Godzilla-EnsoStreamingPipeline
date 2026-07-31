@@ -32,11 +32,19 @@ from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from hdfs.util import HdfsError
-from hdfs_client import (
-    get_client,
-    read_all_partitions_parquet,
-    read_latest_partition_parquet,
-)
+
+try:
+    from .hdfs_client import (
+        get_client,
+        read_all_partitions_parquet,
+        read_latest_partition_parquet,
+    )
+except ImportError:
+    from hdfs_client import (
+        get_client,
+        read_all_partitions_parquet,
+        read_latest_partition_parquet,
+    )
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger("enso.api")
@@ -46,15 +54,15 @@ HDFS_USER = os.environ.get("HDFS_USER", "root")
 HDFS_BASE = os.environ.get("HDFS_BASE_PATH", "/enso_data")
 OPENWEATHERMAP_API_KEY = os.environ.get("OPENWEATHERMAP_API_KEY", "")
 
-RAIZ_REPO = pathlib.Path(__file__).resolve().parent.parent
+RAIZ_REPO = pathlib.Path(__file__).resolve().parent.parent.parent
 
 
 def _resolver_directorio_spark() -> pathlib.Path:
     """Ubica el paquete de Spark (`risk_index.py` + el CSV de zonas)."""
     candidatos = [
         os.environ.get("SPARK_APP_DIR"),
-        "/spark",
         RAIZ_REPO / "backend" / "spark",
+        pathlib.Path("/app/spark"),
     ]
     for candidato in candidatos:
         if not candidato:

@@ -114,12 +114,12 @@ el rango de operación (dividir por el umbral de alerta saturaba en 1.0 para cua
 [data/geo_ref/zonas_guayaquil.csv](backend/spark/data/geo_ref/zonas_guayaquil.csv) (10 zonas) es la
 tabla estática de zonas. La leen Spark y la API (dos endpoints); cambiar sus columnas rompe los tres.
 
-### API (`api/`)
-FastAPI de solo lectura. [hdfs_client.py](api/hdfs_client.py) habla **WebHDFS** con la librería `hdfs`
+### API (`backend/api/`)
+FastAPI de solo lectura. [hdfs_client.py](backend/api/hdfs_client.py) habla **WebHDFS** con la librería `hdfs`
 pura-Python. Le da dos garantías a `app.py`: traduce "la ruta no existe" a `FileNotFoundError` (el
 resto sigue siendo `HdfsError` → 503, no 404) y acota cuántas particiones de fecha lee.
 
-`SPARK_APP_DIR` (default `/spark`, que es donde el compose monta `backend/spark`) es lo que permite
+`SPARK_APP_DIR` (default `/app/spark`, que es donde el compose ubica `backend/spark`) es lo que permite
 importar `risk_index` y ubicar el CSV. `/api/escenario/simular` recalcula el índice en memoria sin
 tocar HDFS, para que el slider del dashboard responda sin esperar el micro-batch.
 `/api/clima/punto` es un proxy de OpenWeatherMap: **la clave vive en el servidor**, el frontend no la

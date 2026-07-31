@@ -89,8 +89,8 @@ El repositorio se organiza dividiendo claramente las responsabilidades del siste
 
 ```text
 Godzilla/
-├── api/                           # API FastAPI que expone datos de HDFS (zona processed/raw) hacia frontend
 ├── backend/
+│   ├── api/                       # API FastAPI que expone datos de HDFS (zona processed/raw) hacia frontend
 │   ├── contracts.py               # Contrato de datos compartido: define el shape de los payloads que
 │   │                              #   alimentan el índice, y lo importan productores y Spark por igual
 │   ├── env/                       # Variables de entorno y credenciales (ej. Google Earth Engine)
@@ -100,7 +100,7 @@ Godzilla/
 ├── docs/                          # Diagramas de arquitectura y documentación técnica complementaria
 ├── frontend/                      # Dashboard web interactivo con mapas (MapLibre, capas de riesgo, simulación)
 ├── tests/                         # Tests del índice de riesgo y del contrato productor ↔ Spark
-└── docker-compose.yml             # Orquestador principal unificado (Hadoop, Kafka, Spark, API, Productores)
+└── compose.yml                    # Orquestador principal unificado (Hadoop, Kafka, Spark, API, Productores)
 ```
 
 ### 🔐 Variables de Entorno y Credenciales

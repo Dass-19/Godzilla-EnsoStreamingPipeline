@@ -252,7 +252,9 @@ services:
 
   # --- API ---
   api:
-    build: api
+    build:
+      context: backend
+      dockerfile: api/Dockerfile
     restart: unless-stopped
     depends_on:
       namenode:
@@ -263,14 +265,13 @@ services:
       - ./backend/env/.env
     environment:
       - WEBHDFS_URL=http://namenode:9870
-      - SPARK_APP_DIR=/spark
-      - GEO_REF_PATH=/spark/data/geo_ref/zonas_guayaquil.csv
+      - SPARK_APP_DIR=/app/spark
+      - GEO_REF_PATH=/app/spark/data/geo_ref/zonas_guayaquil.csv
       - CORS_ORIGINS=http://localhost:8000,http://127.0.0.1:8000
     ports:
       - "8000:8000"
     volumes:
       - ./frontend:/frontend
-      - ./backend/spark:/spark:ro
     networks:
       - enso_net
 
