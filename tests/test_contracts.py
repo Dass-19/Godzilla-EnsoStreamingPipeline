@@ -3,8 +3,7 @@ Tests de contrato entre productores y el job de Spark.
 
 Cada fixture reproduce el payload que el productor publica realmente en su
 tópico. Si alguien cambia el shape en un lado y no en el otro, estos tests
-fallan; antes el desajuste solo se manifestaba como un índice de riesgo que
-no se movía nunca.
+fallan.
 """
 
 import pytest

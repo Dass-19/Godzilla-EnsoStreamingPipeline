@@ -23,8 +23,6 @@ except ImportError:
     EE_AVAILABLE = False
 
 INTERVAL_SECONDS = int(os.environ.get("INTERVALO_CLIMA", 60 * 60))
-# Ventana relativa: antes las colecciones estaban filtradas a 2026-01-01..15,
-# así que cada ciclo horario reprocesaba el mismo bloque fijo.
 VENTANA_DIAS = int(os.environ.get("VENTANA_DIAS_CLIMA", 15))
 
 
@@ -186,8 +184,6 @@ def ingest_data():
 
 
 def run_producer():
-    # Antes el resultado se descartaba: sin GEE disponible el productor entraba
-    # igual al loop y fallaba cada hora sin publicar nada.
     if not test_connection():
         print("[-] GEE no disponible; el productor no arranca el loop.")
         return

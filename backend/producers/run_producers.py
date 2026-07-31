@@ -2,10 +2,7 @@
 Supervisor de los productores Kafka dentro del contenedor `producers`.
 
 Mantiene vivos los productores de larga duración: si alguno muere, lo reinicia
-con un backoff creciente y lo registra. La versión anterior prometía
-"monitorea los procesos" en el docstring pero solo hacía `Popen` + `wait()`
-secuencial: si el productor #7 moría, nadie lo reiniciaba ni lo reportaba, y
-`wait()` seguía bloqueado en el #1.
+con un backoff creciente y lo registra.
 
 Los jobs one-shot (capas geográficas que se descargan enteras) se ejecutan una
 vez al arrancar y luego cada `INTERVALO_ONESHOT` segundos, sin reinicio en

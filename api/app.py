@@ -50,14 +50,7 @@ RAIZ_REPO = pathlib.Path(__file__).resolve().parent.parent
 
 
 def _resolver_directorio_spark() -> pathlib.Path:
-    """
-    Ubica el paquete de Spark (`risk_index.py` + el CSV de zonas).
-
-    Antes esto era `Path(__file__).parent.parent / "spark"`, que dentro del
-    contenedor funcionaba de casualidad (Compose monta `backend/spark` en
-    `/spark`) y fuera de Docker resolvía a `<repo>/spark`, un directorio que
-    no existe: el flujo de desarrollo documentado devolvía 500.
-    """
+    """Ubica el paquete de Spark (`risk_index.py` + el CSV de zonas)."""
     candidatos = [
         os.environ.get("SPARK_APP_DIR"),
         "/spark",
@@ -79,8 +72,6 @@ SPARK_APP_DIR = _resolver_directorio_spark()
 if str(SPARK_APP_DIR) not in sys.path:
     sys.path.insert(0, str(SPARK_APP_DIR))
 
-# Import a nivel de módulo: antes se hacía dentro del handler, junto con un
-# `sys.path.insert`, en cada request.
 from risk_index import calcular_indice_riesgo  # noqa: E402
 
 GEO_REF_PATH = pathlib.Path(
@@ -210,13 +201,10 @@ def _hdfs_caido(error: HdfsError) -> HTTPException:
 
 def _ultimo_por_zona(df):
     """
-    Última fila por zona.
+    Obtiene la última fila por zona_id.
 
-    `groupby("zona_id").last()` tomaba el último valor NO NULO de cada
-    columna por separado, así que podía mezclar campos de instantes
-    distintos. Además, `append` en `foreachBatch` no es idempotente: si Spark
-    reintenta un epoch, sus filas se duplican, por eso se deduplica primero
-    por (zona_id, epoch_id).
+    Deduplica primero por (zona_id, epoch_id) y se queda con la fila más
+    reciente por zona_id.
     """
     df = df.sort_values("calculado_en")
     if "epoch_id" in df.columns:
@@ -343,12 +331,7 @@ def embalse_actual():
 
 @app.get("/api/alertas/recientes")
 def alertas_recientes(limite: int = Query(20, ge=1, le=200)):
-    """
-    Últimas alertas SNGR crudas, para un listado o feed en el dashboard.
-
-    Lee solo la partición más reciente: antes cargaba todo el histórico en
-    pandas para devolver 20 filas.
-    """
+    """Últimas alertas SNGR crudas, para un listado o feed en el dashboard."""
     try:
         df = read_latest_partition_parquet(
             _client(), f"{HDFS_BASE}/raw/sngr_alertas",
@@ -428,12 +411,7 @@ def clima_punto(
     lat: float = Query(..., ge=-90, le=90),
     lon: float = Query(..., ge=-180, le=180),
 ):
-    """
-    Proxy del "current weather" de OpenWeatherMap.
-
-    Existe para que la clave viva en el servidor: el dashboard la tenía
-    embebida en `app.js`, visible para cualquier visitante.
-    """
+    """Proxy del 'current weather' de OpenWeatherMap."""
     if not OPENWEATHERMAP_API_KEY:
         raise HTTPException(
             status_code=503,
@@ -476,12 +454,7 @@ CAPAS_TILES_OWM = {"precipitation_new", "clouds_new"}
 
 @app.get("/api/clima/tiles/{capa}/{z}/{x}/{y}.png")
 def clima_tile(capa: str, z: int, x: int, y: int):
-    """
-    Proxy de los tiles raster de OpenWeatherMap.
-
-    Igual que `/api/clima/punto`: si el frontend pidiera los tiles directo, la
-    clave viajaría en la URL de cada uno, a la vista de cualquier visitante.
-    """
+    """Proxy de los tiles raster de OpenWeatherMap."""
     if capa not in CAPAS_TILES_OWM:
         raise _sin_datos("Capa no reconocida") from None
     if not (0 <= z <= 20):
@@ -516,8 +489,7 @@ def clima_tile(capa: str, z: int, x: int, y: int):
 # Capa de compatibilidad para el frontend original
 # ---------------------------------------------------------------------------
 
-# Allowlist explícita: `filename` viene de la URL y se usaba para construir una
-# ruta de HDFS sin validar.
+# Allowlist explícita de archivos reconocidos por fuente.
 ARCHIVOS_A_FUENTE = {
     "gee_data.json": "gee",
     "noaa_data.json": "noaa",

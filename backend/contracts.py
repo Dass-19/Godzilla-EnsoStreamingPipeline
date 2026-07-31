@@ -7,21 +7,6 @@ Este módulo es la ÚNICA definición del shape de los payloads que alimentan el
   - los productores, para CONSTRUIR el payload (`construir_*`)
   - el job de Spark, para LEERLO (`parse_*`)
 
-Por qué existe: el acoplamiento entre productor y consumidor era por strings
-anidados escritos a mano en cada lado. Los tres accesos del job apuntaban a
-rutas que ningún productor emitía nunca:
-
-    Spark leía                                     Productor emitía
-    ---------------------------------------------  ---------------------------
-    data.mareas.pleamar.altura_m                   altura_marea_m (plano)
-    pronostico_diario.pronostico[0].precipitacion_mm  (INAMHI no expone lluvia)
-    nivel_msnm -> parámetro caudal_descargado_m3s  nivel_msnm (cota, no caudal)
-
-Como cada acceso estaba envuelto en `try/except -> valor por defecto`, el
-índice de riesgo quedó constante por zona durante toda la vida del pipeline,
-sin un solo error en los logs. Con este módulo, un cambio de shape rompe los
-tests de contrato (`tests/test_contracts.py`) en vez de degradar en silencio.
-
 Ninguna función de aquí levanta excepciones por datos ausentes: devuelven
 `None`, y es responsabilidad del llamador registrar la procedencia
 (`real` vs `default`) en la salida.

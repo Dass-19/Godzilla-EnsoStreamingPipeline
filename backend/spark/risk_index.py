@@ -26,10 +26,8 @@ PRECIP_24H_SATURACION_MM = 150.0     # acumulado que ya se considera crítico en
 MAREA_MIN_M = 0.4                    # bajamar típica del modelo armónico
 MAREA_MAX_M = 3.6                    # pleamar típica del modelo armónico
 
-# La fuente (CELEC EP) publica la COTA del embalse en msnm, no un caudal de
-# descarga. Se normaliza contra el rango de operación, no dividiendo por el
-# umbral de alerta: una división saturaba en 1.0 para cualquier cota real,
-# porque el embalse opera siempre cerca de su nivel de alerta.
+# La fuente (CELEC EP) publica la cota del embalse en msnm. Se normaliza contra
+# el rango operativo [EMBALSE_NIVEL_MIN_MSNM, EMBALSE_NIVEL_ALERTA_MSNM].
 EMBALSE_NIVEL_MIN_MSNM = 70.0        # piso operativo típico de Daule-Peripa
 EMBALSE_NIVEL_ALERTA_MSNM = 85.0     # nivel máximo normal de operación
 

@@ -25,7 +25,6 @@ from common.kafka_client import build_producer, run_loop
 from contracts import construir_embalse
 
 TOPIC = "nivel-embalse-celec"
-# Una hora. El valor anterior era `15 * 60 * 60` (15 horas).
 INTERVAL_SECONDS = int(os.environ.get("INTERVALO_EMBALSE", 60 * 60))
 
 WP_API_URL = "https://www.celec.gob.ec/hidronacion/wp-json/wp/v2/posts"

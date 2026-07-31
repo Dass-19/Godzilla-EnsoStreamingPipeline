@@ -2,13 +2,9 @@
 // CONFIGURACIÓN CENTRALIZADA
 // ==========================================
 const CONFIG = {
-    // Rutas relativas: el dashboard lo sirve la propia API en /dashboard, así
-    // que funciona detrás de cualquier host sin recompilar. Antes estaba
-    // clavado en http://localhost:8000.
+    // Rutas relativas para que el dashboard funcione tras cualquier host.
     API_BASE: "/api/",
     DATA_BASE: "/data/",
-    // Sin claves acá: la de OpenWeatherMap vive en el servidor y se consume
-    // por el proxy GET /api/clima/punto.
     MAP_CENTER_REGIONAL: [-95.0, -1.5],
     MAP_CENTER_LOCAL: [-79.9, -2.18],
     REFRESH_RATE_MS: 5 * 60 * 1000 // 5 minutos
@@ -191,7 +187,7 @@ map.on('load', () => {
     map.addSource('sgr-viasinundables', { type: 'geojson', data: CONFIG.DATA_BASE + 'sgr_vias_inundables.geojson' });
     map.addLayer({ id: 'sgr-viasinundables-layer', type: 'line', source: 'sgr-viasinundables', paint: { 'line-color': '#ef4444', 'line-width': 3 }, layout: { 'visibility': 'visible' } });
 
-    // NUEVO: Capa Dinámica de Zonas de Riesgo (Polígonos generados con Turf.js)
+    // Capa Dinámica de Zonas de Riesgo (Polígonos generados con Turf.js)
     map.addSource('zonas-riesgo', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
     map.addLayer({
         id: 'zonas-riesgo-layer',
@@ -421,8 +417,6 @@ toggleLayer('toggle-sst', 'nasa-sst-layer');
 toggleLayer('toggle-owm-precip', 'owm-precip-layer');
 toggleLayer('toggle-owm-clouds', 'owm-clouds-layer');
 toggleLayer('toggle-buoys', 'buoys-layer');
-
-// (Eliminado toggle-regions listener)
 
 document.getElementById('toggle-base-map')?.addEventListener('change', (e) => {
     if (layersLoaded && map.getLayer('opentopo-layer')) {
@@ -1225,9 +1219,7 @@ async function showHistoryChart(zona_id) {
         const res = await fetch(`${CONFIG.API_BASE}riesgo/zonas/${encodeURIComponent(zona_id)}/historico`);
         const data = res.ok ? await res.json() : [];
 
-        // Sin serie histórica no se dibuja una curva inventada: antes un 404
-        // pintaba una progresión 20→35→50→80 fabricada, indistinguible de
-        // datos reales para quien mirara el modal.
+        // Si no hay datos históricos para la zona, no se dibuja gráfica.
         if (!Array.isArray(data) || data.length === 0) {
             if (historyChart) { historyChart.destroy(); historyChart = null; }
             setText('chart-modal-title', `Histórico - ${zona_id}: sin datos todavía`);

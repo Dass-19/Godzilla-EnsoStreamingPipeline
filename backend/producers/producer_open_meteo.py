@@ -20,7 +20,6 @@ LATITUD_NINO34 = 0.0
 LONGITUD_NINO34 = -143.0
 
 INTERVAL_SECONDS = int(os.environ.get("INTERVALO_CLIMA", 60 * 60))
-# Ventana relativa: antes el rango estaba congelado en 2026-01-01..15.
 VENTANA_DIAS = int(os.environ.get("VENTANA_DIAS_CLIMA", 15))
 
 

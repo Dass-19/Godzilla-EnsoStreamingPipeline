@@ -21,10 +21,8 @@ HEADERS = {
     "User-Agent": "GuayasGeoIngest/1.0 (contacto@ejemplo.com)"
 }
 
-# Sin fallback sintético a propósito: antes existía un FALLBACK_GEOJSON con un
-# "Río Guayas (Fallback)" de tres puntos inventados que se persistía en el lake
-# igual que la geometría real. Si Overpass no responde, este productor no
-# publica nada y el dashboard conserva la última capa válida.
+# Si Overpass no responde, este productor no publica nada y se conserva la
+# última capa válida en el dashboard.
 
 
 def fetch_osm_data():

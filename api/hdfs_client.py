@@ -6,18 +6,9 @@ que el NameNode tenga WebHDFS habilitado (puerto 9870 por defecto).
 Se usa la librería `hdfs` (paquete `hdfs`, cliente puro en Python de
 WebHDFS), que descarga los bytes del parquet y los entrega a pandas.
 
-Dos garantías que este módulo le da a `app.py`:
-
-1. **Ausencia de datos = `FileNotFoundError`.** El cliente `hdfs` levanta
-   `HdfsError` tanto si la ruta no existe como si el NameNode está caído, así
-   que los `except FileNotFoundError` de la API nunca se activaban y un
-   "todavía no hay datos" se devolvía como HTTP 500. Aquí se traduce el caso
-   "no existe" a `FileNotFoundError` y el resto se deja propagar como
-   `HdfsError` (error real de infraestructura, 503).
-
-2. **Lecturas acotadas.** `read_all_partitions_parquet` tiene un tope de
-   particiones por defecto: antes cargaba todo el histórico en pandas para
-   devolver 20 filas.
+Provee dos garantías principales:
+1. Traduce errores de ruta inexistente a `FileNotFoundError`.
+2. Acota lecturas mediante límites de particiones.
 """
 
 import io

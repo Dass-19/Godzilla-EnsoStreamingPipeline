@@ -4,18 +4,6 @@ Trabajo de streaming con PySpark para procesar variables ENSO en tiempo real.
 Ingesta datos desde tópicos de Kafka, escribe el crudo a HDFS en formato
 Parquet, calcula el índice de riesgo de inundación por sector en Guayaquil y
 almacena los resultados procesados en HDFS.
-
-Dos diferencias importantes respecto de la primera versión:
-
-1. Las entradas dinámicas del índice (lluvia, marea, cota del embalse) se leen
-   con los parsers de `contracts.py`, el mismo módulo que usan los productores
-   para construir el payload. Antes cada lado escribía la ruta a mano y las
-   tres estaban desalineadas, con el resultado de que el índice era constante.
-
-2. El estado de esas tres variables se mantiene en el driver a partir de los
-   mensajes que llegan en cada micro-batch, en vez de releer el dataset
-   completo de HDFS tres veces por batch (coste O(N) creciente, y carrera con
-   las queries que estaban escribiendo esas mismas rutas).
 """
 
 import json
@@ -60,9 +48,7 @@ CKPT_BASE = os.environ.get(
 )
 GEO_REF_PATH = os.environ.get("GEO_REF_PATH", "spark/data/geo_ref/zonas_guayaquil.csv")
 
-# Alineado con la cadencia real de las fuentes: la más rápida (INOCAR) publica
-# cada 15 min. Con el valor anterior de 60 s se generaban ~1440 parquets
-# diminutos por fuente y por día sin un solo dato nuevo entre medio.
+# Alineado con la cadencia de publicación de las fuentes.
 TRIGGER_INTERVAL = os.environ.get("TRIGGER_INTERVAL", "5 minutes")
 
 # Valores de respaldo cuando todavía no llegó ningún dato real de una fuente.
@@ -80,8 +66,7 @@ TOPICS_A_FUENTES = {
     "enso-indexes": "enso_indexes",
     "inamhi-data": "inamhi",
     "sgr-eventos": "sgr_eventos",
-    # `seguraep-layers` no está: producer_seguraep escribe GeoJSON directo a
-    # HDFS (ver su docstring). El tópico existía y se suscribía en vacío.
+    # `seguraep-layers` no está incluido porque producer_seguraep escribe GeoJSON directo a HDFS.
     "guayas-osm": "guayas_osm",
     TOPIC_EMBALSE: FUENTE_EMBALSE,
     TOPIC_MAREA: FUENTE_MAREA,
@@ -358,8 +343,7 @@ def main() -> None:
         .start()
     )
 
-    # `for q in queries: q.awaitTermination()` bloqueaba en la primera query:
-    # si fallaba cualquier otra, el driver seguía vivo y nadie se enteraba.
+    # Termina si cualquiera de las consultas de streaming se detiene o falla.
     spark.streams.awaitAnyTermination()
 
 

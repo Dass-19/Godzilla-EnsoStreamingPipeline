@@ -24,9 +24,6 @@ from common.kafka_client import build_producer, run_loop
 from contracts import construir_marea
 
 TOPIC = "mareas-inocar"
-# 15 minutos. El valor anterior era `15 * 60 * 60` (15 horas), que contradecía
-# el propio diseño del productor: interpola la altura "para el instante actual"
-# y luego no volvía a publicar hasta más de medio día después.
 INTERVAL_SECONDS = int(os.environ.get("INTERVALO_MAREAS", 15 * 60))
 
 PDF_URL_TEMPLATE = (

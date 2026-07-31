@@ -22,12 +22,8 @@ VARIABLES = "wave_height,ocean_current_velocity,sea_surface_temperature"
 def fetch_buoy_data(buoy):
     """
     Lee oleaje, corriente y temperatura superficial del punto de la boya desde
-    la Marine API de Open-Meteo.
-
-    La SST se pide a la API en vez de fabricarse: antes se generaba con
-    `random.uniform(-0.5, 0.5)` sobre una temperatura base y se persistía en el
-    lake como si fuera una lectura real. Si la API no la devuelve, el campo va
-    en `null` y `fuente_sst` lo marca como no disponible.
+    la Marine API de Open-Meteo. Si la API no la devuelve, el campo va en `null`
+    y `fuente_sst` lo marca como no disponible.
     """
     url = (
         "https://marine-api.open-meteo.com/v1/marine"

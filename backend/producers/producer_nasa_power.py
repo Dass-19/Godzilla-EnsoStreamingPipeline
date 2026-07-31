@@ -20,8 +20,7 @@ LONGITUD_GUAYAQUIL = -79.9
 INTERVAL_SECONDS = int(os.environ.get("INTERVALO_CLIMA", 60 * 60))
 # NASA POWER publica la serie diaria con varios días de latencia, así que se
 # pide una ventana hacia atrás y `parse_precipitacion` se queda con el día más
-# reciente que traiga dato. Antes el rango estaba fijo en 2026-01-01..15, de
-# modo que cada ciclo horario reenviaba el mismo bloque estático para siempre.
+# reciente que traiga dato.
 VENTANA_DIAS = int(os.environ.get("VENTANA_DIAS_CLIMA", 15))
 
 
