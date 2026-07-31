@@ -3,3 +3,5 @@ uvicorn[standard]==0.30.6
 pandas==2.2.3
 pyarrow==18.0.0
 hdfs==2.7.3
+requests==2.32.3
+pydantic==2.9.2

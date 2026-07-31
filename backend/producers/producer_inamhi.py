@@ -3,12 +3,15 @@ Script de Ingesta para INAMHI.
 Descarga datos reales desde los endpoints del Visor Hidro-Meteorológico
 y del servicio de Pronósticos de INAMHI.
 """
- 
 
-from common.kafka_client import build_producer, run_loop
+
+import datetime
+import os
 
 import requests
-import datetime
+from common.kafka_client import build_producer, run_loop
+
+INTERVAL_SECONDS = int(os.environ.get("INTERVALO_CLIMA", 60 * 60))
 
 # Endpoints REALES confirmados (no ArcGIS, no requieren login para GET público)
 ESTACIONES_URL = (
@@ -77,7 +80,7 @@ def ingest_data():
     return {
         "metadata": {
             "source": "INAMHI (Instituto Nacional de Meteorología e Hidrología)",
-            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
         },
         "estaciones": estaciones,
         "pronostico_diario": pronostico,
@@ -91,7 +94,7 @@ def run_producer():
         if data:
             return [data]
         return []
-    run_loop(producer, "inamhi-data", _fetch, interval_seconds=3600)
+    run_loop(producer, "inamhi-data", _fetch, interval_seconds=INTERVAL_SECONDS)
 
 
 if __name__ == "__main__":

@@ -7,16 +7,24 @@
     <title>Godzilla</title>
     <link rel="icon" type="image/png" href="icon.png">
 
+    <!-- Todas las dependencias de CDN van con versión exacta y Subresource
+         Integrity: sin `integrity` el navegador ejecuta lo que el CDN sirva,
+         y `chart.js` sin versión traía la última publicada en cada carga. -->
+
     <!-- MapLibre GL JS CSS -->
-    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet"
+        integrity="sha384-p5cy4wHtKSqjnLUNjQ+8ffCwUp0vlLS+6lg1lc3qqXax2E1EmVCMCAimU+R0MOZH"
+        crossorigin="anonymous" />
 
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
 
     <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"
+        integrity="sha384-NrKB+u6Ts6AtkIhwPixiKTzgSKNblyhlk0Sohlgar9UHUBzai/sgnNNWWd291xqt"
+        crossorigin="anonymous"></script>
 
-    <link rel="stylesheet" href="styles.css?v=13">
+    <link rel="stylesheet" href="styles.css?v=14">
 </head>
 
 <body>
@@ -255,9 +263,9 @@
                 <h3>💧 Embalse Daule-Peripa</h3>
                 <div class="metrics">
                     <div class="metric w-45"><span class="label">Cota Actual</span><span class="value text-sm"
-                            id="val-cota-embalse">-- m</span></div>
-                    <div class="metric w-45"><span class="label">Caudal</span><span class="value text-sm"
-                            id="val-caudal-embalse">-- m³/s</span></div>
+                            id="val-cota-embalse">--</span></div>
+                    <div class="metric w-45"><span class="label">Nivel Máx.</span><span class="value text-sm"
+                            id="val-nivel-max-embalse">--</span></div>
                 </div>
                 <div id="embalse-alert" class="mt-2 text-sm font-bold"></div>
             </section>
@@ -337,10 +345,12 @@
                     <input type="range" id="sim-tide" min="0" max="5" step="0.1" value="0"
                         style="width:100%; accent-color: #38bdf8;">
                 </div>
+                <!-- CELEC publica la COTA del embalse (msnm), no el caudal de
+                     descarga: el simulador usa la misma magnitud que el índice. -->
                 <div style="margin-top:10px;">
-                    <label style="font-size:12px; font-weight:bold;">Desfogue Embalse: <span id="sim-dam-val"
-                            style="color:#38bdf8;">0</span> m³/s</label>
-                    <input type="range" id="sim-dam" min="0" max="2000" step="10" value="0"
+                    <label style="font-size:12px; font-weight:bold;">Cota Embalse: <span id="sim-dam-val"
+                            style="color:#38bdf8;">70</span> msnm</label>
+                    <input type="range" id="sim-dam" min="60" max="95" step="0.5" value="70"
                         style="width:100%; accent-color: #38bdf8;">
                 </div>
                 <button id="btn-simular"
@@ -369,11 +379,16 @@
         </div>
     </div>
 
-    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
-    <!-- <script src="config.js"></script> -->
-    <script src="app.js?v=8"></script>
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"
+        integrity="sha384-3WUbXI7T+/GIrWP/5MDMjhzLyHQ+0utF3PnJ7ozD7UeN1/bbZ96Hk+Vvd024VYfW"
+        crossorigin="anonymous"></script>
+    <!-- cdn.tailwindcss.com eliminado: es un build de desarrollo que compila en
+         el navegador y del que este dashboard solo usaba `p-2` y `rounded`.
+         Ambas están ahora en styles.css. -->
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"
+        integrity="sha384-82q0nm29xZzIo5BMtDYnh2/NxeO6FoaK1S/0nF84w3cEsqbBfun3JdMyDVYWfVY5"
+        crossorigin="anonymous"></script>
+    <script src="app.js?v=9"></script>
 </body>
 
 </html>

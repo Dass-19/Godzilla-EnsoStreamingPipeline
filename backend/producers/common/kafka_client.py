@@ -7,8 +7,8 @@ Cada productor (NOAA, GPM, INAMHI, CELEC, INOCAR, SNGR) reutiliza:
     - run_loop(): bucle infinito que llama a una función fetch_fn() cada
         N segundos y publica cada registro que retorne.
 
-El runner `producers/run_all.ps1` arranca estos productores en background
-para evitar tener que abrir seis terminales a mano.
+`run_producers.py` supervisa estos productores en un solo contenedor y
+reinicia el que muera.
 
 fetch_fn() debe retornar una lista de dicts (uno por medición/evento).
 """
@@ -17,8 +17,8 @@ import json
 import logging
 import os
 import time
-from datetime import datetime, timezone
-from typing import Callable, Iterable, Optional
+from collections.abc import Callable, Iterable
+from datetime import UTC, datetime
 
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
@@ -29,10 +29,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# El catálogo de estaciones de INAMHI y el GeoJSON de OSM superan el límite
+# por defecto de 1 MB por mensaje: con gzip y este tope dejan de descartarse.
+MAX_REQUEST_SIZE_BYTES = int(os.environ.get("KAFKA_MAX_REQUEST_SIZE", 10 * 1024 * 1024))
+
+
 def build_producer(bootstrap_servers: str = None) -> KafkaProducer:
     if bootstrap_servers is None:
         bootstrap_servers = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
-    
+
     while True:
         try:
             return KafkaProducer(
@@ -42,6 +47,8 @@ def build_producer(bootstrap_servers: str = None) -> KafkaProducer:
                 acks="all",
                 retries=5,
                 linger_ms=200,
+                compression_type="gzip",
+                max_request_size=MAX_REQUEST_SIZE_BYTES,
             )
         except Exception as e:
             logger.warning(f"Esperando a Kafka en {bootstrap_servers}: {e}")
@@ -52,10 +59,10 @@ def send_record(
         producer: KafkaProducer,
         topic: str,
         record: dict,
-        key: Optional[str] = None
+        key: str | None = None
         ) -> None:
     record = dict(record)
-    record.setdefault("ingested_at", datetime.now(timezone.utc).isoformat())
+    record.setdefault("ingested_at", datetime.now(UTC).isoformat())
     future = producer.send(topic, key=key, value=record)
     try:
         metadata = future.get(timeout=10)
@@ -72,7 +79,7 @@ def run_loop(
         topic: str,
         fetch_fn: Callable[[], Iterable[dict]],
         interval_seconds: int,
-        key_fn: Optional[Callable[[dict], str]] = None,
+        key_fn: Callable[[dict], str] | None = None,
         ) -> None:
     logger.info(
         "iniciando loop de productor topic=%s intervalo=%ss",

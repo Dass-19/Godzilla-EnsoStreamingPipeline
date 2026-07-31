@@ -4,9 +4,10 @@ Extrae cuerpos de agua principales (ríos, esteros) y calles principales
 usando la API de Overpass para la provincia del Guayas.
 """
 
-from common.kafka_client import build_producer, send_record
-import requests
 import traceback
+
+import requests
+from common.kafka_client import build_producer, send_record
 
 # overpass-api.de está devolviendo 406 a clientes "tipo bot" (requests, curl, QGIS)
 # desde 2024-2026 por un filtro anti-scraping. Usamos mirrors como alternativa.
@@ -20,16 +21,10 @@ HEADERS = {
     "User-Agent": "GuayasGeoIngest/1.0 (contacto@ejemplo.com)"
 }
 
-FALLBACK_GEOJSON = {
-    "type": "FeatureCollection",
-    "features": [
-        {
-            "type": "Feature",
-            "geometry": {"type": "LineString", "coordinates": [[-79.88, -2.18], [-79.89, -2.19], [-79.90, -2.20]]},
-            "properties": {"name": "Río Guayas (Fallback)"}
-        }
-    ]
-}
+# Sin fallback sintético a propósito: antes existía un FALLBACK_GEOJSON con un
+# "Río Guayas (Fallback)" de tres puntos inventados que se persistía en el lake
+# igual que la geometría real. Si Overpass no responde, este productor no
+# publica nada y el dashboard conserva la última capa válida.
 
 
 def fetch_osm_data():
@@ -72,8 +67,8 @@ def fetch_osm_data():
             response = None
 
     if response is None:
-        print(f"[-] Todos los mirrors fallaron ({last_error}). Generando fallback local.")
-        return FALLBACK_GEOJSON
+        print(f"[-] Todos los mirrors fallaron ({last_error}). No se publica nada.")
+        return None
 
     try:
         data = response.json()
@@ -96,19 +91,19 @@ def fetch_osm_data():
                     })
 
         if not features:
-            print("[-] La consulta no devolvió elementos. Generando fallback local.")
-            return FALLBACK_GEOJSON
+            print("[-] La consulta no devolvió elementos. No se publica nada.")
+            return None
 
         return {"type": "FeatureCollection", "features": features}
 
     except requests.exceptions.RequestException as e:
         # cubre Timeout, ConnectionError, HTTPError, etc.
-        print(f"[-] Error de red/timeout contactando Overpass: {e}. Generando fallback local.")
-        return FALLBACK_GEOJSON
+        print(f"[-] Error de red/timeout contactando Overpass: {e}. No se publica nada.")
+        return None
     except Exception as e:
         print(f"[-] Error fatal extrayendo datos OSM: {e}")
         traceback.print_exc()
-        return FALLBACK_GEOJSON
+        return None
 
 
 def run_producer():
@@ -122,6 +117,8 @@ def run_producer():
         send_record(producer, "guayas-osm", wrapped)
         producer.flush()
         print("[+] guayas_osm enviado a Kafka.")
+    else:
+        print("[-] guayas_osm sin datos válidos; no se publicó nada.")
 
 if __name__ == "__main__":
     run_producer()

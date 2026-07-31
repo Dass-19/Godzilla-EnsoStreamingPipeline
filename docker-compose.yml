@@ -102,6 +102,11 @@ services:
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      # El catálogo de estaciones de INAMHI y el GeoJSON de OSM superan el
+      # límite por defecto de 1 MB por mensaje. Debe coincidir con
+      # KAFKA_MAX_REQUEST_SIZE del lado del productor.
+      KAFKA_MESSAGE_MAX_BYTES: 10485760
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 10485760
     healthcheck:
       test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:29092", "--list"]
       interval: 10s
@@ -121,7 +126,6 @@ services:
       "
       echo -e 'Creando topics de kafka'
       kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic gee-data
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic seguraep-layers
       kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic alertas-sngr
       kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic guayas-osm
       kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic enso-indexes
@@ -171,7 +175,12 @@ services:
 
   # --- PRODUCERS ---
   producers:
-    build: backend/producers
+    # Contexto `backend/` para que la imagen incluya contracts.py, el módulo
+    # compartido con el job de Spark (ver backend/producers/Dockerfile).
+    build:
+      context: backend
+      dockerfile: producers/Dockerfile
+    restart: unless-stopped
     depends_on:
       init-kafka:
         condition: service_completed_successfully
@@ -199,11 +208,17 @@ services:
         condition: service_completed_successfully
     volumes:
       - ./backend/spark:/opt/spark-app
+      # Módulo compartido con los productores: define el shape de los payloads
+      # que alimentan el índice de riesgo.
+      - ./backend/contracts.py:/opt/spark-app/contracts.py:ro
     environment:
       - KAFKA_BOOTSTRAP=kafka:29092
       - HDFS_BASE_PATH=hdfs://namenode:8020/enso_data
       - CHECKPOINT_BASE_PATH=hdfs://namenode:8020/enso_data/_checkpoints
       - GEO_REF_PATH=/opt/spark-app/data/geo_ref/zonas_guayaquil.csv
+      # Alineado con la cadencia real de las fuentes (la más rápida publica
+      # cada 15 min). Con 60 s se generaban ~1440 parquets vacíos por día.
+      - TRIGGER_INTERVAL=5 minutes
     entrypoint: [ "/bin/sh", "-c" ]
     command: |
       "
@@ -229,7 +244,7 @@ services:
         --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1 \\
         --conf spark.driver.extraJavaOptions=\"-Divy.cache.dir=/tmp -Divy.home=/tmp\" \\
         --conf spark.hadoop.dfs.client.use.datanode.hostname=true \\
-        --py-files /opt/spark-app/risk_index.py \\
+        --py-files /opt/spark-app/risk_index.py,/opt/spark-app/contracts.py \\
         /opt/spark-app/spark_streaming_job.py
       "
     networks:
@@ -238,11 +253,19 @@ services:
   # --- API ---
   api:
     build: api
+    restart: unless-stopped
     depends_on:
       namenode:
         condition: service_healthy
+    # Necesita OPENWEATHERMAP_API_KEY para el proxy /api/clima/punto: la clave
+    # vive en el servidor, no en el JS del dashboard.
+    env_file:
+      - ./backend/env/.env
     environment:
       - WEBHDFS_URL=http://namenode:9870
+      - SPARK_APP_DIR=/spark
+      - GEO_REF_PATH=/spark/data/geo_ref/zonas_guayaquil.csv
+      - CORS_ORIGINS=http://localhost:8000,http://127.0.0.1:8000
     ports:
       - "8000:8000"
     volumes:

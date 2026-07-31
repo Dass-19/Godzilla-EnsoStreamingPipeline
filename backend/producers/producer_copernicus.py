@@ -9,10 +9,13 @@ Obtiene TODAS las variables oceanográficas clave para la predicción de El Niñ
 """
 
 
-from common.kafka_client import build_producer, send_record, run_loop
-
 import datetime
+import os
 import traceback
+
+from common.kafka_client import build_producer, run_loop
+
+INTERVAL_SECONDS = int(os.environ.get("INTERVALO_INDICES", 60 * 60))
 
 # Datasets divididos por variable en la nueva arquitectura de Copernicus
 DATASETS = {
@@ -24,10 +27,19 @@ DATASETS = {
 
 def test_connection():
     print("[*] Iniciando sesión en Copernicus Marine Service con credenciales...")
+    usuario = os.environ.get("COPERNICUS_USERNAME")
+    password = os.environ.get("COPERNICUS_PASSWORD")
+    if not usuario or not password:
+        print(
+            "[-] Faltan COPERNICUS_USERNAME / COPERNICUS_PASSWORD en el entorno. "
+            "Definilas en backend/env/.env (ver .env.example)."
+        )
+        return False
+
     try:
         # pyrefly: ignore [missing-import]
         import copernicusmarine
-        copernicusmarine.login(username="mbarco", password="REDACTED_COPERNICUS_PASS")
+        copernicusmarine.login(username=usuario, password=password)
         print("[+] Login exitoso en Copernicus Marine")
         return True
     except ImportError:
@@ -42,11 +54,11 @@ def ingest_data():
     try:
         # pyrefly: ignore [missing-import]
         import copernicusmarine
-        
+
         # Filtramos para Niño 3.4 (Aprox Lat -5 a 5, Lon -170 a -120)
         lat_slice = slice(-5, 5)
         lon_slice = slice(-170, -120)
-        
+
         records_by_date = {}
 
         # 1. Variables 2D (Altura del mar y Capa de Mezcla)
@@ -54,18 +66,18 @@ def ingest_data():
         ds_2d = copernicusmarine.open_dataset(dataset_id=DATASETS["2D"])
         subset_2d = ds_2d[['zos', 'mlotst']].sel(latitude=lat_slice, longitude=lon_slice)
         recent_times = subset_2d.time[-5:].values
-        
+
         for t in recent_times:
             dt = datetime.datetime.fromtimestamp(t.astype('O') / 1e9, datetime.UTC)
             date_str = dt.strftime('%Y-%m-%d')
-            
+
             daily_slice = subset_2d.sel(time=t)
             records_by_date[date_str] = {
                 "date": date_str,
                 "zos_meters": float(daily_slice['zos'].mean().values),
                 "mlotst_meters": float(daily_slice['mlotst'].mean().values)
             }
-            
+
         # 2. Temperatura (SST / Thetao) a profundidad 0
         print(f"[*] Obteniendo THETAO (Temperatura) de {DATASETS['SST']}")
         ds_sst = copernicusmarine.open_dataset(dataset_id=DATASETS["SST"])
@@ -75,7 +87,7 @@ def ingest_data():
             date_str = dt.strftime('%Y-%m-%d')
             if date_str in records_by_date:
                 records_by_date[date_str]["thetao_degC"] = float(subset_sst.sel(time=t).mean().values)
-                
+
         # 3. Salinidad (SO) a profundidad 0
         print(f"[*] Obteniendo SO (Salinidad) de {DATASETS['SAL']}")
         ds_sal = copernicusmarine.open_dataset(dataset_id=DATASETS["SAL"])
@@ -114,7 +126,7 @@ def ingest_data():
             },
             "data": list(records_by_date.values())
         }
-            
+
     except Exception as e:
         print(f"[-] Error al descargar/procesar datos de Copernicus: {e}")
         traceback.print_exc()
@@ -122,13 +134,17 @@ def ingest_data():
 
 
 def run_producer():
+    if not test_connection():
+        print("[-] Copernicus no disponible; el productor no arranca el loop.")
+        return
+
     producer = build_producer()
     def _fetch():
         data = ingest_data()
         if data:
             return [data]
         return []
-    run_loop(producer, "copernicus-data", _fetch, interval_seconds=3600)
+    run_loop(producer, "copernicus-data", _fetch, interval_seconds=INTERVAL_SECONDS)
 
 if __name__ == "__main__":
     run_producer()

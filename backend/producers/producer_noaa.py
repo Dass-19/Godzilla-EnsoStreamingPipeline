@@ -4,14 +4,16 @@ Descarga y procesa índices mensuales de temperatura superficial del mar (SST)
 de El Niño (regiones 1+2, 3, 4 y 3.4) de la NOAA CPC.
 """
 
-import requests
-import pandas as pd
-import io
 import datetime
+import io
+import os
 
+import pandas as pd
+import requests
 from common.kafka_client import build_producer, run_loop
 
 ENDPOINT = "https://www.cpc.ncep.noaa.gov/data/indices/ersst5.nino.mth.91-20.ascii"
+INTERVAL_SECONDS = int(os.environ.get("INTERVALO_INDICES", 60 * 60))
 
 
 def ingest_data():
@@ -41,7 +43,7 @@ def ingest_data():
         return {
             "metadata": {
                 "source": "NOAA SST Indices",
-                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
             },
             "data": records
         }
@@ -58,7 +60,7 @@ def run_producer():
         if data:
             return [data]
         return []
-    run_loop(producer, "noaa-data", _fetch, interval_seconds=3600)
+    run_loop(producer, "noaa-data", _fetch, interval_seconds=INTERVAL_SECONDS)
 
 
 if __name__ == "__main__":

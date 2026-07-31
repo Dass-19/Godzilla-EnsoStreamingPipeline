@@ -5,18 +5,37 @@ Variables: Temperatura, Precipitación, Vientos Alisios (Velocidad y Dirección)
 """
 
 
-from common.kafka_client import build_producer, run_loop
+import datetime
+import os
 
 import requests
-import datetime
+from common.kafka_client import build_producer, run_loop
 
 ENDPOINT = "https://archive-api.open-meteo.com/v1/archive"
+
+# Centro de la región Niño 3.4 (Pacífico central). OJO: no es Guayaquil; estos
+# datos describen el estado del ENSO, no la lluvia local. La precipitación que
+# alimenta el índice de riesgo sale de NASA POWER, que sí consulta Guayaquil.
+LATITUD_NINO34 = 0.0
+LONGITUD_NINO34 = -143.0
+
+INTERVAL_SECONDS = int(os.environ.get("INTERVALO_CLIMA", 60 * 60))
+# Ventana relativa: antes el rango estaba congelado en 2026-01-01..15.
+VENTANA_DIAS = int(os.environ.get("VENTANA_DIAS_CLIMA", 15))
+
+
+def _ventana_fechas():
+    hoy = datetime.datetime.now(datetime.UTC).date()
+    desde = hoy - datetime.timedelta(days=VENTANA_DIAS)
+    return desde.isoformat(), hoy.isoformat()
+
 
 def test_connection():
     print("[*] Probando conexión con Open-Meteo...")
     try:
         # Prueba ligera
-        params = {"latitude": 0.0, "longitude": -143.0, "start_date": "2026-01-01", "end_date": "2026-01-02", "daily": "temperature_2m_mean", "timezone": "UTC"}
+        inicio, fin = _ventana_fechas()
+        params = {"latitude": LATITUD_NINO34, "longitude": LONGITUD_NINO34, "start_date": inicio, "end_date": fin, "daily": "temperature_2m_mean", "timezone": "UTC"}
         response = requests.get(ENDPOINT, params=params, timeout=10)
         if response.status_code == 200:
             print("[+] Conexión exitosa con Open-Meteo (Status 200)")
@@ -30,11 +49,12 @@ def test_connection():
 
 def ingest_data():
     print("[*] Descargando variables atmosféricas predictivas de Open-Meteo...")
+    inicio, fin = _ventana_fechas()
     params = {
-        "latitude": 0.0,
-        "longitude": -143.0, # Centro de la región Niño 3.4
-        "start_date": "2026-01-01",
-        "end_date": "2026-01-15",
+        "latitude": LATITUD_NINO34,
+        "longitude": LONGITUD_NINO34,
+        "start_date": inicio,
+        "end_date": fin,
         "daily": "temperature_2m_mean,precipitation_sum,wind_speed_10m_max,wind_direction_10m_dominant,shortwave_radiation_sum",
         "timezone": "UTC"
     }
@@ -42,9 +62,9 @@ def ingest_data():
         response = requests.get(ENDPOINT, params=params, timeout=15)
         if response.status_code != 200:
             return None
-        
+
         raw_data = response.json()
-        
+
         records = []
         if "daily" in raw_data:
             daily = raw_data["daily"]
@@ -58,11 +78,12 @@ def ingest_data():
                     "shortwave_radiation_mj_m2": daily.get("shortwave_radiation_sum", [])[i]
                 }
                 records.append(record)
-                
+
         return {
             "metadata": {
                 "source": "Open-Meteo Archive API",
-                "region": "Niño 3.4 (Lat 0.0, Lon -143.0)",
+                "region": f"Niño 3.4 (Lat {LATITUD_NINO34}, Lon {LONGITUD_NINO34})",
+                "ventana": {"desde": inicio, "hasta": fin},
                 "variables": [
                     "temperature_2m_mean (Coupling océano-atmósfera)",
                     "precipitation_sum (Lluvias ecuatoriales)",
@@ -86,7 +107,7 @@ def run_producer():
         if data:
             return [data]
         return []
-    run_loop(producer, "open-meteo-data", _fetch, interval_seconds=3600)
+    run_loop(producer, "open-meteo-data", _fetch, interval_seconds=INTERVAL_SECONDS)
 
 if __name__ == "__main__":
     run_producer()

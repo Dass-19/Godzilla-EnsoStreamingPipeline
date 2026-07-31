@@ -2,13 +2,39 @@
 // CONFIGURACIÓN CENTRALIZADA
 // ==========================================
 const CONFIG = {
-    API_BASE: "http://localhost:8000/api/",
-    DATA_BASE: "http://localhost:8000/data/",
-    OWM_API_KEY: "REDACTED_OWM_KEY",
+    // Rutas relativas: el dashboard lo sirve la propia API en /dashboard, así
+    // que funciona detrás de cualquier host sin recompilar. Antes estaba
+    // clavado en http://localhost:8000.
+    API_BASE: "/api/",
+    DATA_BASE: "/data/",
+    // Sin claves acá: la de OpenWeatherMap vive en el servidor y se consume
+    // por el proxy GET /api/clima/punto.
     MAP_CENTER_REGIONAL: [-95.0, -1.5],
     MAP_CENTER_LOCAL: [-79.9, -2.18],
     REFRESH_RATE_MS: 5 * 60 * 1000 // 5 minutos
 };
+
+// Escribe texto plano en un nodo por id, sin interpretar HTML.
+function setText(id, texto, color) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = texto;
+    if (color) el.style.color = color;
+}
+
+function spanTexto(texto, css) {
+    const span = document.createElement('span');
+    span.textContent = String(texto);
+    if (css) span.style.cssText = css;
+    return span;
+}
+
+function mensajeVacio(texto) {
+    const div = document.createElement('div');
+    div.style.cssText = "text-align: center; color: #94a3b8; font-size: 12px; margin-top: 20px;";
+    div.textContent = texto;
+    return div;
+}
 
 // ==========================================
 // INICIALIZACIÓN DEL MAPA
@@ -86,10 +112,12 @@ map.on('load', () => {
     map.addLayer({ id: 'nasa-sst-layer', type: 'raster', source: 'nasa-sst', paint: { 'raster-opacity': 0.65 }, layout: { 'visibility': 'visible' } });
 
 
-    map.addSource('owm-precip', { type: 'raster', tiles: [`https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=${CONFIG.OWM_API_KEY}`], tileSize: 256 });
+    // Los tiles de OpenWeatherMap también pasan por la API: la clave iría en
+    // la URL de cada tile, es decir, a la vista de cualquier visitante.
+    map.addSource('owm-precip', { type: 'raster', tiles: [`${CONFIG.API_BASE}clima/tiles/precipitation_new/{z}/{x}/{y}.png`], tileSize: 256 });
     map.addLayer({ id: 'owm-precip-layer', type: 'raster', source: 'owm-precip', paint: { 'raster-opacity': 1.0 }, layout: { 'visibility': 'none' } });
 
-    map.addSource('owm-clouds', { type: 'raster', tiles: [`https://tile.openweathermap.org/map/clouds_new/{z}/{x}/{y}.png?appid=${CONFIG.OWM_API_KEY}`], tileSize: 256 });
+    map.addSource('owm-clouds', { type: 'raster', tiles: [`${CONFIG.API_BASE}clima/tiles/clouds_new/{z}/{x}/{y}.png`], tileSize: 256 });
     map.addLayer({ id: 'owm-clouds-layer', type: 'raster', source: 'owm-clouds', paint: { 'raster-opacity': 0.7 }, layout: { 'visibility': 'none' } });
 
     // RESTAURADO: Todas las Regiones El Niño
@@ -513,9 +541,9 @@ map.on('click', async (e) => {
             .addTo(map);
 
         try {
-            // Datos actuales OWM
-            const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${CONFIG.OWM_API_KEY}&units=metric&lang=es`);
-            if (!response.ok) throw new Error("Error en API OWM");
+            // Datos actuales vía proxy de la API (la clave de OWM no viaja al cliente)
+            const response = await fetch(`${CONFIG.API_BASE}clima/punto?lat=${lat}&lon=${lon}`);
+            if (!response.ok) throw new Error("Error consultando el clima del punto");
             const data = await response.json();
 
             // Datos históricos 7 días Open-Meteo
@@ -533,21 +561,25 @@ map.on('click', async (e) => {
                 });
             }
 
-            const popupHtml = `
-                <div style="color: #1e293b; font-family: Inter; min-width: 220px;">
-                    <h4 style="margin:0 0 8px 0; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px;">Información Oceánica</h4>
-                    <p style="margin:0 0 4px 0; font-size: 12px;"><b>Coord:</b> ${lat.toFixed(2)}, ${lon.toFixed(2)}</p>
-                    <p style="margin:0 0 4px 0; font-size: 12px;"><b>Temperatura:</b> ${data.main?.temp ? data.main.temp.toFixed(1) + '°C' : '--'}</p>
-                    <p style="margin:0 0 4px 0; font-size: 12px;"><b>Viento:</b> ${data.wind?.speed ? data.wind.speed.toFixed(1) + ' m/s' : '--'}</p>
-                    <p style="margin:0 0 4px 0; font-size: 12px;"><b>Humedad:</b> ${data.main?.humidity ? data.main.humidity + '%' : '--'}</p>
-                    <p style="margin:0 0 4px 0; font-size: 12px; text-transform: capitalize;"><b>Condición:</b> ${data.weather && data.weather[0] ? data.weather[0].description : '--'}</p>
-                    <div style="margin-top: 10px; height: 100px; width: 100%;">
-                        <canvas id="popupChart"></canvas>
-                    </div>
+            // La descripción viene de un proveedor externo: se inserta con
+            // textContent, no interpolada en el HTML del popup.
+            const popupRoot = document.createElement('div');
+            popupRoot.style.cssText = "color: #1e293b; font-family: Inter; min-width: 220px;";
+            popupRoot.innerHTML = `
+                <h4 style="margin:0 0 8px 0; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px;">Información Oceánica</h4>
+                <p style="margin:0 0 4px 0; font-size: 12px;"><b>Coord:</b> ${lat.toFixed(2)}, ${lon.toFixed(2)}</p>
+                <p style="margin:0 0 4px 0; font-size: 12px;"><b>Temperatura:</b> ${data.temperatura_c != null ? data.temperatura_c.toFixed(1) + '°C' : '--'}</p>
+                <p style="margin:0 0 4px 0; font-size: 12px;"><b>Viento:</b> ${data.viento_ms != null ? data.viento_ms.toFixed(1) + ' m/s' : '--'}</p>
+                <p style="margin:0 0 4px 0; font-size: 12px;"><b>Humedad:</b> ${data.humedad_pct != null ? data.humedad_pct + '%' : '--'}</p>
+                <p style="margin:0 0 4px 0; font-size: 12px; text-transform: capitalize;"><b>Condición:</b> <span data-campo="descripcion"></span></p>
+                <div style="margin-top: 10px; height: 100px; width: 100%;">
+                    <canvas id="popupChart"></canvas>
                 </div>
             `;
+            popupRoot.querySelector('[data-campo="descripcion"]').textContent =
+                data.descripcion || '--';
 
-            currentPopup.setHTML(popupHtml);
+            currentPopup.setDOMContent(popupRoot);
 
             if (labels.length > 0) {
                 setTimeout(() => {
@@ -774,7 +806,7 @@ async function runSimulation(rain, tide, dam, btnId, btnText) {
     }
 
     try {
-        const res = await fetch(`${CONFIG.API_BASE}escenario/simular?precip_24h_mm=${rain}&altura_marea_m=${tide}&caudal_embalse_m3s=${dam}`);
+        const res = await fetch(`${CONFIG.API_BASE}escenario/simular?precip_24h_mm=${rain}&altura_marea_m=${tide}&nivel_embalse_msnm=${dam}`);
         if (res.ok) {
             const data = await res.json();
             let totalRiesgo = 0;
@@ -849,11 +881,13 @@ document.getElementById('btn-simular')?.addEventListener('click', () => {
 });
 
 document.getElementById('btn-simular-historico')?.addEventListener('click', () => {
-    // Valores extremos basados en El Niño 1997/98
+    // Valores extremos basados en El Niño 1997/98.
+    // `dam` es la cota del embalse en msnm (85 = nivel máximo normal de
+    // operación de Daule-Peripa), no un caudal de desfogue.
     const rain = 150;
     const tide = 5.0;
-    const dam = 1500;
-    
+    const dam = 85.5;
+
     document.getElementById('sim-rain').value = rain;
     document.getElementById('sim-tide').value = tide;
     document.getElementById('sim-dam').value = dam;
@@ -869,10 +903,10 @@ document.getElementById('btn-reset-sim')?.addEventListener('click', () => {
     isSimulating = false;
     document.getElementById('sim-rain').value = 0;
     document.getElementById('sim-tide').value = 0;
-    document.getElementById('sim-dam').value = 0;
+    document.getElementById('sim-dam').value = 70;
     document.getElementById('sim-rain-val').innerText = '0';
     document.getElementById('sim-tide-val').innerText = '0';
-    document.getElementById('sim-dam-val').innerText = '0';
+    document.getElementById('sim-dam-val').innerText = '70';
     updateRiskZonesAndGauge();
 });
 
@@ -969,38 +1003,52 @@ async function updateInamhiData() {
         if (!res.ok) return;
         const json = await res.json();
 
+        const listContainer = document.getElementById('inamhi-list');
+        listContainer.textContent = '';
+
+        // El productor guarda {"error": ...} cuando INAMHI no responde: sin
+        // este guard, el acceso encadenado lanzaba un TypeError que el catch
+        // se tragaba y el panel quedaba con los datos anteriores.
+        const estaciones = json?.estaciones?.estaciones;
+        if (!Array.isArray(estaciones)) {
+            listContainer.appendChild(mensajeVacio("Sin catálogo de estaciones disponible."));
+            return;
+        }
+
         const cantonesInteres = ["GUAYAQUIL", "DAULE", "DURAN", "SAMBORONDON"];
-        const activas = json.estaciones.estaciones.filter(e =>
+        const activas = estaciones.filter(e =>
             e.estado_transmision === "TRANSMITIENDO" &&
             cantonesInteres.includes(e.canton)
         );
 
-        const listContainer = document.getElementById('inamhi-list');
-        listContainer.innerHTML = '';
-
         if (activas.length === 0) {
-            listContainer.innerHTML = '<div style="text-align: center; color: #94a3b8; font-size: 12px; margin-top: 20px;">No hay estaciones transmitiendo en esta zona.</div>';
+            listContainer.appendChild(mensajeVacio("No hay estaciones transmitiendo en esta zona."));
             return;
         }
 
+        // Los campos vienen de una API de terceros: se insertan con
+        // textContent, nunca interpolados en innerHTML.
         activas.forEach(est => {
             const el = document.createElement('div');
             el.style.borderBottom = "1px solid rgba(255,255,255,0.1)";
             el.style.padding = "8px 0";
             el.style.fontSize = "11px";
 
-            const catColor = est.categoria.includes("METEORO") ? "#60a5fa" : "#34d399";
+            const categoria = String(est.categoria ?? "");
+            const catColor = categoria.includes("METEORO") ? "#60a5fa" : "#34d399";
 
-            el.innerHTML = `
-                <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-                    <span style="font-weight: bold; color: #e2e8f0;">${est.punto_obs}</span>
-                    <span style="color: #94a3b8;">${est.canton} | Alt: ${est.altitud}m</span>
-                </div>
-                <div style="display: flex; justify-content: space-between;">
-                    <span style="color: ${catColor}; font-weight: 600;">${est.categoria}</span>
-                    <span style="color: #4ade80;">● Transmitiendo</span>
-                </div>
-            `;
+            const filaSuperior = document.createElement('div');
+            filaSuperior.style.cssText = "display: flex; justify-content: space-between; margin-bottom: 2px;";
+            filaSuperior.appendChild(spanTexto(est.punto_obs ?? "--", "font-weight: bold; color: #e2e8f0;"));
+            filaSuperior.appendChild(spanTexto(`${est.canton ?? "--"} | Alt: ${est.altitud ?? "--"}m`, "color: #94a3b8;"));
+
+            const filaInferior = document.createElement('div');
+            filaInferior.style.cssText = "display: flex; justify-content: space-between;";
+            filaInferior.appendChild(spanTexto(categoria || "--", `color: ${catColor}; font-weight: 600;`));
+            filaInferior.appendChild(spanTexto("● Transmitiendo", "color: #4ade80;"));
+
+            el.appendChild(filaSuperior);
+            el.appendChild(filaInferior);
             listContainer.appendChild(el);
         });
 
@@ -1013,7 +1061,7 @@ async function updateInamhiData() {
                 let uvColor = '#4ade80';
                 if (guayaquil.uv_radiation >= 8) uvColor = '#ef4444';
                 else if (guayaquil.uv_radiation >= 5) uvColor = '#facc15';
-                document.getElementById('val-inamhi-uv').innerHTML = `<span style="color: ${uvColor}">${guayaquil.uv_radiation}</span>`;
+                setText('val-inamhi-uv', guayaquil.uv_radiation ?? '--', uvColor);
 
                 document.getElementById('val-inamhi-lluvia').innerText = guayaquil.rain ? "Sí 🌧️" : "No ☀️";
                 document.getElementById('val-inamhi-lluvia').style.color = guayaquil.rain ? "#60a5fa" : "#4ade80";
@@ -1059,20 +1107,24 @@ async function updateEmbalseData() {
         if (!res.ok) return;
         const data = await res.json();
         const parsed = JSON.parse(data.json_str);
-        const cota = parsed.nivel_msnm ?? 0;
-        const caudal = parsed.caudal_m3s ?? 0;
-        document.getElementById('val-cota-embalse').innerText = `${cota} m`;
-        document.getElementById('val-caudal-embalse').innerText = `${caudal} m³/s`;
+        const cota = parsed.nivel_msnm ?? null;
+        setText('val-cota-embalse', cota != null ? `${cota} msnm` : 'sin dato');
+        // CELEC no publica caudal de descarga en sus boletines: mostrar 0 daba
+        // a entender que el desfogue estaba medido y era nulo.
+        setText('val-nivel-max-embalse',
+            parsed.nivel_maximo_msnm != null ? `${parsed.nivel_maximo_msnm} msnm` : 'no informado');
 
-        const alertEl = document.getElementById('embalse-alert');
-        if (cota > 80) {
-            alertEl.innerText = "⚠️ Nivel Crítico. Posible desfogue.";
-            alertEl.style.color = "#f87171";
+        if (cota != null && cota > 80) {
+            setText('embalse-alert', "⚠️ Nivel Crítico. Posible desfogue.", "#f87171");
+        } else if (cota != null) {
+            setText('embalse-alert', "✓ Nivel Operativo Normal", "#4ade80");
         } else {
-            alertEl.innerText = "✓ Nivel Operativo Normal";
-            alertEl.style.color = "#4ade80";
+            setText('embalse-alert', "Sin boletín reciente de CELEC", "#94a3b8");
         }
-    } catch (e) { console.error("Error Embalse:", e); }
+    } catch (e) {
+        console.error("Error Embalse:", e);
+        setText('embalse-alert', "Error consultando el embalse", "#f87171");
+    }
 }
 
 async function updateRiskZonesAndGauge() {
@@ -1170,21 +1222,23 @@ async function showHistoryChart(zona_id) {
     document.getElementById('chart-modal-title').innerText = `Histórico - ${zona_id}`;
 
     try {
-        const res = await fetch(`${CONFIG.API_BASE}riesgo/zonas/${zona_id}/historico`);
-        const data = await res.ok ? await res.json() : [];
+        const res = await fetch(`${CONFIG.API_BASE}riesgo/zonas/${encodeURIComponent(zona_id)}/historico`);
+        const data = res.ok ? await res.json() : [];
 
-        const mockData = data.length > 0 ? data : [
-            { calculado_en: '10:00', indice_riesgo: 20 },
-            { calculado_en: '11:00', indice_riesgo: 35 },
-            { calculado_en: '12:00', indice_riesgo: 50 },
-            { calculado_en: '13:00', indice_riesgo: 80 }
-        ];
+        // Sin serie histórica no se dibuja una curva inventada: antes un 404
+        // pintaba una progresión 20→35→50→80 fabricada, indistinguible de
+        // datos reales para quien mirara el modal.
+        if (!Array.isArray(data) || data.length === 0) {
+            if (historyChart) { historyChart.destroy(); historyChart = null; }
+            setText('chart-modal-title', `Histórico - ${zona_id}: sin datos todavía`);
+            return;
+        }
 
-        const labels = mockData.map(d => {
+        const labels = data.map(d => {
             const date = new Date(d.calculado_en);
             return isNaN(date) ? d.calculado_en : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         });
-        const values = data.length > 0 ? data.map(d => (d.indice_riesgo || 0) * 100) : mockData.map(d => d.indice_riesgo);
+        const values = data.map(d => (d.indice_riesgo || 0) * 100);
 
         if (historyChart) historyChart.destroy();
 
@@ -1205,14 +1259,14 @@ async function showHistoryChart(zona_id) {
                 {
                     type: 'bar',
                     label: 'Marea (m)',
-                    data: mockData.map(d => d.altura_marea_m || 0),
+                    data: data.map(d => d.altura_marea_m || 0),
                     backgroundColor: 'rgba(96, 165, 250, 0.5)',
                     yAxisID: 'y1'
                 },
                 {
                     type: 'bar',
                     label: 'Lluvia (mm)',
-                    data: mockData.map(d => d.precip_acumulada_24h_mm || 0),
+                    data: data.map(d => d.precip_acumulada_24h_mm || 0),
                     backgroundColor: 'rgba(52, 211, 153, 0.5)',
                     yAxisID: 'y2'
                 }]

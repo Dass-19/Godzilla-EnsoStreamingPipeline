@@ -4,7 +4,7 @@
 Combina, todos normalizados a [0, 1]:
   - precip_24h_norm: acumulado de lluvia en 24h relativo a un umbral de saturación
   - marea_norm: altura de marea relativa al rango pleamar-bajamar del estuario
-  - embalse_norm: nivel/descarga del embalse Daule-Peripa relativo a su umbral de alerta
+  - embalse_norm: cota del embalse Daule-Peripa dentro de su rango de operación
   - factor_topografico: derivado de cota + pendiente + cercanía a estero (estático por zona)
   - historico_flag: 1.0 si la zona tiene antecedentes de inundación, 0 si no
 
@@ -25,7 +25,13 @@ from dataclasses import dataclass
 PRECIP_24H_SATURACION_MM = 150.0     # acumulado que ya se considera crítico en 24h
 MAREA_MIN_M = 0.4                    # bajamar típica del modelo armónico
 MAREA_MAX_M = 3.6                    # pleamar típica del modelo armónico
-EMBALSE_NIVEL_ALERTA_MSNM = 85.0     # nivel crítico de embalse Daule-Peripa
+
+# La fuente (CELEC EP) publica la COTA del embalse en msnm, no un caudal de
+# descarga. Se normaliza contra el rango de operación, no dividiendo por el
+# umbral de alerta: una división saturaba en 1.0 para cualquier cota real,
+# porque el embalse opera siempre cerca de su nivel de alerta.
+EMBALSE_NIVEL_MIN_MSNM = 70.0        # piso operativo típico de Daule-Peripa
+EMBALSE_NIVEL_ALERTA_MSNM = 85.0     # nivel máximo normal de operación
 
 PESO_PRECIP = 0.35
 PESO_MAREA = 0.15
@@ -70,14 +76,15 @@ def normalizar_marea(altura_marea_m: float) -> float:
     return _clip01((altura_marea_m - MAREA_MIN_M) / (MAREA_MAX_M - MAREA_MIN_M))
 
 
-def normalizar_embalse(caudal_descargado_m3s: float) -> float:
-    return _clip01(caudal_descargado_m3s / EMBALSE_NIVEL_ALERTA_MSNM)
+def normalizar_embalse(nivel_embalse_msnm: float) -> float:
+    rango = EMBALSE_NIVEL_ALERTA_MSNM - EMBALSE_NIVEL_MIN_MSNM
+    return _clip01((nivel_embalse_msnm - EMBALSE_NIVEL_MIN_MSNM) / rango)
 
 
 def calcular_indice_riesgo(
     precip_24h_mm: float,
     altura_marea_m: float,
-    caudal_descargado_m3s: float,
+    nivel_embalse_msnm: float,
     cota_media_msnm: float,
     pendiente_clase: str,
     cercania_estero_m: float,
@@ -85,7 +92,7 @@ def calcular_indice_riesgo(
 ) -> dict:
     precip_norm = normalizar_precip(precip_24h_mm)
     marea_norm = normalizar_marea(altura_marea_m)
-    embalse_norm = normalizar_embalse(caudal_descargado_m3s)
+    embalse_norm = normalizar_embalse(nivel_embalse_msnm)
     topo_norm = FactorTopografico(cota_media_msnm, pendiente_clase, cercania_estero_m).normalizado()
     historico_norm = 1.0 if historicamente_inundable else 0.0
 

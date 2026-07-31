@@ -1,0 +1,7 @@
+# Contexto de build del contenedor `producers` (ver producers/Dockerfile).
+__pycache__/
+**/__pycache__/
+.venv/
+producers/logs/
+# Credenciales: nunca deben entrar en la imagen (se montan en runtime).
+env/

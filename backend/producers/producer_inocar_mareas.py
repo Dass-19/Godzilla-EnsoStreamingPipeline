@@ -14,16 +14,20 @@ disponibles desde 2022 hasta hoy.
 """
 
 import math
-from datetime import datetime, timezone
+import os
+from datetime import UTC, datetime
 from io import BytesIO
 
 import pdfplumber
 import requests
-
 from common.kafka_client import build_producer, run_loop
+from contracts import construir_marea
 
 TOPIC = "mareas-inocar"
-INTERVAL_SECONDS = 15 * 60 * 60
+# 15 minutos. El valor anterior era `15 * 60 * 60` (15 horas), que contradecía
+# el propio diseño del productor: interpola la altura "para el instante actual"
+# y luego no volvía a publicar hasta más de medio día después.
+INTERVAL_SECONDS = int(os.environ.get("INTERVALO_MAREAS", 15 * 60))
 
 PDF_URL_TEMPLATE = (
     "https://www.inocar.mil.ec/mareas/TM/{anio}/trimestral/"
@@ -136,7 +140,7 @@ def _parsear_eventos(texto: str, anio: int, trimestre: int):
                     dia,
                     int(hhmm[:2]),
                     int(hhmm[2:]),
-                    tzinfo=timezone.utc,
+                    tzinfo=UTC,
                 )
             except ValueError:
                 continue
@@ -169,9 +173,9 @@ def _interpolar_altura(eventos, ahora: datetime):
 
 
 def _modelo_armonico_fallback() -> list[dict]:
-    ahora = datetime.now(timezone.utc)
+    ahora = datetime.now(UTC)
     horas = (
-        ahora - datetime(1970, 1, 1, tzinfo=timezone.utc)
+        ahora - datetime(1970, 1, 1, tzinfo=UTC)
     ).total_seconds() / 3600.0
 
     def _altura(horas_relativas: float) -> float:
@@ -187,17 +191,16 @@ def _modelo_armonico_fallback() -> list[dict]:
     altura_en_1h = _altura(horas + 1)
     tendencia = "subiendo" if altura_en_1h > altura else "bajando"
 
-    return [{
-        "fuente": "modelo_armonico_fallback",
-        "puerto": "Guayaquil",
-        "altura_marea_m": round(altura, 3),
-        "tendencia": tendencia,
-        "pleamar": altura >= (NIVEL_MEDIO_M + 1.0),
-    }]
+    return [construir_marea(
+        altura_m=altura,
+        tendencia=tendencia,
+        pleamar=altura >= (NIVEL_MEDIO_M + 1.0),
+        fuente="modelo_armonico_fallback",
+    )]
 
 
 def _iterar_trimestres_desde(anio_inicio: int = 2022):
-    ahora = datetime.now(timezone.utc)
+    ahora = datetime.now(UTC)
     for anio in range(anio_inicio, ahora.year + 1):
         trimestre_final = _trimestre_actual(ahora) if anio == ahora.year else 4
         for trimestre in range(1, trimestre_final + 1):
@@ -210,7 +213,7 @@ def cargar_historico(anio_inicio: int = 2022) -> list[dict]:
         try:
             pdf_bytes = _descargar_pdf(anio, trimestre)
             texto = _extraer_texto(pdf_bytes)
-            for fecha, altura in _parsear_eventos(texto, anio, trimestre):
+            for _fecha, altura in _parsear_eventos(texto, anio, trimestre):
                 eventos.append({
                     "fuente": "INOCAR_pdf",
                     "anio": anio,
@@ -224,7 +227,7 @@ def cargar_historico(anio_inicio: int = 2022) -> list[dict]:
 
 
 def fetch_marea() -> list[dict]:
-    ahora = datetime.now(timezone.utc)
+    ahora = datetime.now(UTC)
     anio, trimestre = ahora.year, _trimestre_actual(ahora)
 
     try:
@@ -248,13 +251,12 @@ def fetch_marea() -> list[dict]:
         t1, h1 = resultado["evento_siguiente"]
         es_pleamar = altura >= max(h0, h1) - 0.3
 
-        return [{
-            "fuente": "INOCAR_pdf",
-            "puerto": "Guayaquil",
-            "altura_marea_m": round(altura, 3),
-            "tendencia": resultado["tendencia"],
-            "pleamar": bool(es_pleamar),
-        }]
+        return [construir_marea(
+            altura_m=altura,
+            tendencia=resultado["tendencia"],
+            pleamar=es_pleamar,
+            fuente="INOCAR_pdf",
+        )]
     except Exception:
         return _modelo_armonico_fallback()
 

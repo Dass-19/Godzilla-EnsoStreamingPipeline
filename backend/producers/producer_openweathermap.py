@@ -4,17 +4,18 @@ Extrae datos meteorológicos actuales (temperatura, viento, nubes).
 """
 
 
-import os
-from common.kafka_client import build_producer, run_loop
-
-import urllib.request
-import json
 import datetime
+import json
+import os
 import traceback
+import urllib.request
+
+from common.kafka_client import build_producer, run_loop
 
 API_KEY = os.environ.get("OPENWEATHERMAP_API_KEY", "")
 CITY = "Guayaquil"
 COUNTRY = "EC"
+INTERVAL_SECONDS = int(os.environ.get("INTERVALO_CLIMA", 60 * 60))
 
 
 def fetch_weather():
@@ -51,6 +52,10 @@ def fetch_weather():
 
 
 def run_producer():
+    if not API_KEY:
+        print("[-] Falta OPENWEATHERMAP_API_KEY; el productor no arranca el loop.")
+        return
+
     producer = build_producer()
 
     def _fetch():
@@ -58,7 +63,7 @@ def run_producer():
         if data:
             return [data]
         return []
-    run_loop(producer, "openweathermap-data", _fetch, interval_seconds=3600)
+    run_loop(producer, "openweathermap-data", _fetch, interval_seconds=INTERVAL_SECONDS)
 
 
 if __name__ == "__main__":

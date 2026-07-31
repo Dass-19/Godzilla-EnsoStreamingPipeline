@@ -17,13 +17,16 @@ que sea auditable en el dashboard/informe.
 """
 
 import html
+import os
 import re
-import requests
 
+import requests
 from common.kafka_client import build_producer, run_loop
+from contracts import construir_embalse
 
 TOPIC = "nivel-embalse-celec"
-INTERVAL_SECONDS = 15 * 60 * 60
+# Una hora. El valor anterior era `15 * 60 * 60` (15 horas).
+INTERVAL_SECONDS = int(os.environ.get("INTERVALO_EMBALSE", 60 * 60))
 
 WP_API_URL = "https://www.celec.gob.ec/hidronacion/wp-json/wp/v2/posts"
 
@@ -163,20 +166,14 @@ def fetch_nivel_embalse() -> list[dict]:
         if datos is None:
             continue
 
-        registro = {
-            "fuente": "CELEC_wp_api",
-            "embalse": "Daule-Peripa",
-            "descripcion": datos["descripcion"],
-            "url_fuente": datos["url_fuente"],
-            "fecha_noticia": datos["fecha_noticia"],
-            "nivel_msnm": datos["nivel_msnm"],
-        }
-
-        # nivel_maximo_msnm es opcional (no todos los boletines lo mencionan)
-        if "nivel_maximo_msnm" in datos:
-            registro["nivel_maximo_msnm"] = datos["nivel_maximo_msnm"]
-
-        registros.append(registro)
+        registros.append(construir_embalse(
+            nivel_msnm=datos["nivel_msnm"],
+            descripcion=datos["descripcion"],
+            url_fuente=datos["url_fuente"],
+            fecha_noticia=datos["fecha_noticia"],
+            # nivel_maximo_msnm es opcional: no todos los boletines lo mencionan
+            nivel_maximo_msnm=datos.get("nivel_maximo_msnm"),
+        ))
 
     return registros
 

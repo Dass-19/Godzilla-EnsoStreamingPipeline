@@ -4,10 +4,13 @@ Descarga Presión a Nivel del Mar de Tahití y Darwin para calcular un proxy del
 """
 
 
-from common.kafka_client import build_producer, send_record, run_loop
+import datetime
+import os
 
 import requests
-import datetime
+from common.kafka_client import build_producer, run_loop
+
+INTERVAL_SECONDS = int(os.environ.get("INTERVALO_INDICES", 60 * 60))
 
 # Coordenadas exactas
 TAHITI = {"lat": -17.65, "lon": -149.46}
@@ -70,7 +73,7 @@ def run_producer():
         if data:
             return [data]
         return []
-    run_loop(producer, "enso-indexes", _fetch, interval_seconds=3600)
+    run_loop(producer, "enso-indexes", _fetch, interval_seconds=INTERVAL_SECONDS)
 
 if __name__ == "__main__":
     run_producer()

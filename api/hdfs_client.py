@@ -5,26 +5,77 @@ que el NameNode tenga WebHDFS habilitado (puerto 9870 por defecto).
 
 Se usa la librería `hdfs` (paquete `hdfs`, cliente puro en Python de
 WebHDFS), que descarga los bytes del parquet y los entrega a pandas.
+
+Dos garantías que este módulo le da a `app.py`:
+
+1. **Ausencia de datos = `FileNotFoundError`.** El cliente `hdfs` levanta
+   `HdfsError` tanto si la ruta no existe como si el NameNode está caído, así
+   que los `except FileNotFoundError` de la API nunca se activaban y un
+   "todavía no hay datos" se devolvía como HTTP 500. Aquí se traduce el caso
+   "no existe" a `FileNotFoundError` y el resto se deja propagar como
+   `HdfsError` (error real de infraestructura, 503).
+
+2. **Lecturas acotadas.** `read_all_partitions_parquet` tiene un tope de
+   particiones por defecto: antes cargaba todo el histórico en pandas para
+   devolver 20 filas.
 """
 
 import io
-import json
 import logging
 from functools import lru_cache
-from typing import Optional, List
-import socket
 
 import pandas as pd
 from hdfs import InsecureClient
-
-
+from hdfs.util import HdfsError
 
 logger = logging.getLogger(__name__)
+
+# Tope por defecto de particiones de fecha a leer en una sola petición.
+MAX_PARTICIONES_POR_DEFECTO = 7
 
 
 @lru_cache(maxsize=1)
 def get_client(webhdfs_url: str, user: str) -> InsecureClient:
     return InsecureClient(webhdfs_url, user=user)
+
+
+def _es_ruta_inexistente(error: HdfsError) -> bool:
+    mensaje = str(error)
+    return (
+        getattr(error, "exception", "") == "FileNotFoundException"
+        or "FileNotFoundException" in mensaje
+        or "does not exist" in mensaje
+    )
+
+
+def _listar(client: InsecureClient, ruta: str) -> list[str]:
+    """`client.list` traduciendo 'no existe' a FileNotFoundError."""
+    try:
+        return client.list(ruta, status=False)
+    except HdfsError as error:
+        if _es_ruta_inexistente(error):
+            raise FileNotFoundError(f"No existe la ruta {ruta}") from error
+        raise
+
+
+def _listar_particiones(
+    client: InsecureClient,
+    base_path: str,
+    partition_col: str,
+) -> list[str]:
+    prefijo = f"{partition_col}="
+    return sorted(e for e in _listar(client, base_path) if e.startswith(prefijo))
+
+
+def _leer_particion(client: InsecureClient, ruta_particion: str) -> list[pd.DataFrame]:
+    dfs = []
+    for archivo in _listar(client, ruta_particion):
+        if not archivo.endswith(".parquet"):
+            continue
+        with client.read(f"{ruta_particion}/{archivo}") as reader:
+            contenido = reader.read()
+        dfs.append(pd.read_parquet(io.BytesIO(contenido)))
+    return dfs
 
 
 def read_latest_partition_parquet(
@@ -35,55 +86,55 @@ def read_latest_partition_parquet(
     """
     Lee todos los archivos parquet de la partición de fecha más reciente
     bajo base_path (esquema Hive: base_path/fecha=YYYY-MM-DD/*.parquet).
+
+    Si la partición más reciente quedó vacía (Spark crea el directorio antes
+    de escribir), retrocede a la anterior en vez de fallar.
     """
-    entradas = client.list(base_path, status=False)
-    particiones = sorted(
-        [e for e in entradas if e.startswith(f"{partition_col}=")],
-        reverse=True,
-    )
+    particiones = _listar_particiones(client, base_path, partition_col)
     if not particiones:
         raise FileNotFoundError(f"No hay particiones bajo {base_path}")
 
-    ultima_particion = particiones[0]
-    ruta_particion = f"{base_path}/{ultima_particion}"
-    archivos = [f for f in client.list(ruta_particion) if f.endswith(".parquet")]
+    for particion in reversed(particiones):
+        dfs = _leer_particion(client, f"{base_path}/{particion}")
+        if dfs:
+            return pd.concat(dfs, ignore_index=True)
 
-    dfs = []
-    for archivo in archivos:
-        with client.read(f"{ruta_particion}/{archivo}") as reader:
-            contenido = reader.read()
-        dfs.append(pd.read_parquet(io.BytesIO(contenido)))
-
-    if not dfs:
-        raise FileNotFoundError(f"No hay archivos parquet en {ruta_particion}")
-
-    return pd.concat(dfs, ignore_index=True)
+    raise FileNotFoundError(f"No hay archivos parquet bajo {base_path}")
 
 
 def read_all_partitions_parquet(
     client: InsecureClient,
     base_path: str,
     partition_col: str = "fecha",
-    desde: Optional[str] = None,
-    hasta: Optional[str] = None,
+    desde: str | None = None,
+    hasta: str | None = None,
+    max_particiones: int | None = MAX_PARTICIONES_POR_DEFECTO,
 ) -> pd.DataFrame:
-    """Lee y concatena varias particiones de fecha, opcionalmente filtrando por rango."""
-    entradas = client.list(base_path, status=False)
-    particiones = [e for e in entradas if e.startswith(f"{partition_col}=")]
+    """
+    Lee y concatena varias particiones de fecha, filtrando por rango.
+
+    `max_particiones` acota cuántas particiones se traen: se conservan las más
+    recientes del rango. `None` desactiva el tope (usar solo con un rango
+    explícito y acotado).
+    """
+    particiones = _listar_particiones(client, base_path, partition_col)
 
     if desde:
         particiones = [p for p in particiones if p.split("=", 1)[1] >= desde]
     if hasta:
         particiones = [p for p in particiones if p.split("=", 1)[1] <= hasta]
 
+    if max_particiones is not None and len(particiones) > max_particiones:
+        descartadas = len(particiones) - max_particiones
+        logger.info(
+            "%s: leyendo las %s particiones más recientes (%s descartadas)",
+            base_path, max_particiones, descartadas,
+        )
+        particiones = particiones[-max_particiones:]
+
     dfs = []
-    for particion in sorted(particiones):
-        ruta_particion = f"{base_path}/{particion}"
-        archivos = [f for f in client.list(ruta_particion) if f.endswith(".parquet")]
-        for archivo in archivos:
-            with client.read(f"{ruta_particion}/{archivo}") as reader:
-                contenido = reader.read()
-            dfs.append(pd.read_parquet(io.BytesIO(contenido)))
+    for particion in particiones:
+        dfs.extend(_leer_particion(client, f"{base_path}/{particion}"))
 
     if not dfs:
         return pd.DataFrame()

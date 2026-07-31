@@ -1,15 +1,27 @@
 """
-Script de Ingesta para Segura EP.
-Scrapea y descarga capas de zonas inundables, zonas seguras, vías inundables,
-y sectores vulnerables por marea alta directamente a HDFS.
+Carga de capas geográficas de Segura EP / SGR.
+
+Excepción arquitectónica deliberada: este script NO publica a Kafka, escribe
+GeoJSON directo a HDFS vía WebHDFS. Las capas (zonas inundables, zonas
+seguras, vías inundables, puntos vulnerables por marea alta) son referencia
+geográfica estática, no un flujo de eventos: se descargan enteras, se
+sobrescriben enteras y el dashboard las consume tal cual por
+`GET /data/sgr_*.geojson`. Pasarlas por Kafka + Spark solo agregaría una
+reserialización a parquet de la que habría que reconstruir el GeoJSON.
+
+Por eso tampoco existe ya el tópico `seguraep-layers`: se creaba en
+`init-kafka` y Spark lo suscribía, pero nunca recibía un solo mensaje.
+
+Es un job one-shot: `run_producers.py` lo ejecuta una vez por ciclo largo, no
+lo mantiene vivo.
 """
 
-import os
 import json
-import urllib.request
+import os
 import urllib.parse
-from hdfs import InsecureClient
+import urllib.request
 
+from hdfs import InsecureClient
 
 LAYERS = [
     {

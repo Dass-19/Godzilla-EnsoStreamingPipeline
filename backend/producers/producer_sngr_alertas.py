@@ -23,14 +23,15 @@ alerta: retorna una lista vacía (igual que "no hubo alertas nuevas este
 ciclo"), que es semánticamente correcto para una fuente event-driven.
 """
 
+import os
 import re
 
 import requests
-
 from common.kafka_client import build_producer, run_loop
 
 TOPIC = "alertas-sngr"
-INTERVAL_SECONDS = 15 * 60 * 60
+# 15 minutos. El valor anterior era `15 * 60 * 60` (15 horas).
+INTERVAL_SECONDS = int(os.environ.get("INTERVALO_ALERTAS", 15 * 60))
 
 WP_API_URL = "https://www.gestionderiesgos.gob.ec/wp-json/wp/v2/posts"
 PALABRAS_CLAVE_BUSQUEDA = "lluvias alerta Guayas"

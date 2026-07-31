@@ -3,40 +3,53 @@ Script de Ingesta para Boyas Oceanográficas (NDBC TAO Array).
 Extrae datos para las boyas 32320 (Niño 1+2 / Galápagos) y 32321 (Niño 3).
 """
 
-import requests
 import datetime
-import random
+import os
+
+import requests
 from common.kafka_client import build_producer, run_loop
+
+INTERVAL_SECONDS = int(os.environ.get("INTERVALO_INDICES", 60 * 60))
 
 BUOYS = [
     {"id": "32320", "name": "Boya TAO 95W (Galápagos)", "lat": 0.0, "lon": -95.0},
     {"id": "32321", "name": "Boya TAO 110W (Pacífico Central)", "lat": 0.0, "lon": -110.0}
 ]
 
+VARIABLES = "wave_height,ocean_current_velocity,sea_surface_temperature"
+
+
 def fetch_buoy_data(buoy):
     """
-    Simula la lectura de la NOAA NDBC o utiliza Open-Meteo Marine API para extraer 
-    oleaje y corrientes, combinándolo con una simulación térmica de la boya.
+    Lee oleaje, corriente y temperatura superficial del punto de la boya desde
+    la Marine API de Open-Meteo.
+
+    La SST se pide a la API en vez de fabricarse: antes se generaba con
+    `random.uniform(-0.5, 0.5)` sobre una temperatura base y se persistía en el
+    lake como si fuera una lectura real. Si la API no la devuelve, el campo va
+    en `null` y `fuente_sst` lo marca como no disponible.
     """
-    url = f"https://marine-api.open-meteo.com/v1/marine?latitude={buoy['lat']}&longitude={buoy['lon']}&current=wave_height,ocean_current_velocity"
+    url = (
+        "https://marine-api.open-meteo.com/v1/marine"
+        f"?latitude={buoy['lat']}&longitude={buoy['lon']}&current={VARIABLES}"
+    )
     try:
         r = requests.get(url, timeout=10)
         r.raise_for_status()
         data = r.json()
         current = data.get("current", {})
-        
-        # Simulamos la temperatura del agua (SST) basándonos en patrones ENSO normales
-        base_temp = 24.5 if buoy['id'] == "32320" else 26.2
-        water_temp = round(base_temp + random.uniform(-0.5, 0.5), 2)
-        
+
+        water_temp = current.get("sea_surface_temperature")
+
         return {
             "buoy_id": buoy["id"],
             "name": buoy["name"],
             "latitude": buoy["lat"],
             "longitude": buoy["lon"],
             "water_temp_c": water_temp,
-            "wave_height_m": current.get("wave_height", 0),
-            "current_velocity_kmh": current.get("ocean_current_velocity", 0),
+            "fuente_sst": "open_meteo_marine" if water_temp is not None else "no_disponible",
+            "wave_height_m": current.get("wave_height"),
+            "current_velocity_kmh": current.get("ocean_current_velocity"),
             "timestamp": datetime.datetime.now(datetime.UTC).isoformat()
         }
     except Exception as e:
@@ -50,7 +63,7 @@ def ingest_data():
         data = fetch_buoy_data(buoy)
         if data:
             records.append(data)
-    
+
     if not records:
         return None
 
@@ -74,19 +87,20 @@ def run_producer():
                         "id": r["buoy_id"],
                         "name": r["name"],
                         "water_temp_c": r["water_temp_c"],
+                        "fuente_sst": r["fuente_sst"],
                         "wave_height_m": r["wave_height_m"],
                         "current_velocity_kmh": r["current_velocity_kmh"]
                     }
                 })
-            
+
             geojson = {
                 "type": "FeatureCollection",
                 "features": features
             }
             return [geojson]
         return []
-    
-    run_loop(producer, "ndbc-buoys", _fetch, interval_seconds=3600)
+
+    run_loop(producer, "ndbc-buoys", _fetch, interval_seconds=INTERVAL_SECONDS)
 
 if __name__ == "__main__":
     run_producer()

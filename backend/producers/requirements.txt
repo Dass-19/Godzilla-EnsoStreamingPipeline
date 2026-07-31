@@ -1,6 +1,7 @@
-kafka-python-ng
+kafka-python-ng==2.2.3
 requests==2.32.3
 pdfplumber==0.11.4
-earthengine-api
-hdfs==2.7.3 
-pandas==2.2.2
+earthengine-api==1.1.2
+cryptography==43.0.1
+hdfs==2.7.3
+pandas==2.2.3

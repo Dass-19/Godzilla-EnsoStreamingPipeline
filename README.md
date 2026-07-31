@@ -17,7 +17,9 @@ Pipeline completo de datos (El Niño / Riesgo de inundación Guayaquil) utilizan
 Ante el fenómeno de El Niño y sus proyecciones de intensificación, este proyecto implementa una plataforma de **Big Data** para procesar masivamente información satelital y climática en tiempo cuasi-real, focalizándose en el riesgo hídrico para la ciudad de Guayaquil y la cuenca del río Guayas.
 
 **Puntos Clave del Proyecto:**
-- **Monitoreo Integral:** Evalúa la evolución de El Niño (NOAA, ENSO Indexes, boyas NDBC, NASA POWER, Copernicus) junto a variables locales críticas meteorológicas (INAMHI, Open Meteo, OpenWeatherMap), nivel de marea (INOCAR), operación del embalse Daule-Peripa (CELEC EP) e incidentes o alertas locales (SNGR, SGR, Segura EP).
+- **Monitoreo Integral:** Evalúa la evolución de El Niño (NOAA, ENSO Indexes, boyas NDBC, NASA POWER, GEE) junto a variables locales críticas meteorológicas (INAMHI, Open Meteo, OpenWeatherMap), nivel de marea (INOCAR), operación del embalse Daule-Peripa (CELEC EP) e incidentes o alertas locales (SNGR, SGR, Segura EP).
+  - `producer_copernicus.py` está incluido pero **no se ejecuta por defecto**: requiere credenciales de Copernicus Marine y el paquete `copernicusmarine`, que no está en `requirements.txt`. Se lanza a mano cuando ambas cosas estén disponibles.
+  - Segura EP es la única fuente que **no pasa por Kafka**: son capas geográficas estáticas que el productor escribe directo a HDFS (ver el docstring de `producer_seguraep.py`).
 - **Procesamiento Distribuido:** Ingesta robusta de datos vía **Apache Kafka** (1 topic por fuente) y transformación mediante **Apache Spark (Structured Streaming)** para calcular un índice de riesgo de inundación dinámico por zonas.
 - **Almacenamiento Escalable:** Data Lake en **HDFS** particionado por fecha y fuente (Zonas Raw y Processed en formato Parquet).
 - **Módulo de Vulnerabilidad (Dashboard Web):** 
@@ -89,12 +91,15 @@ El repositorio se organiza dividiendo claramente las responsabilidades del siste
 Godzilla/
 ├── api/                           # API FastAPI que expone datos de HDFS (zona processed/raw) hacia frontend
 ├── backend/
+│   ├── contracts.py               # Contrato de datos compartido: define el shape de los payloads que
+│   │                              #   alimentan el índice, y lo importan productores y Spark por igual
 │   ├── env/                       # Variables de entorno y credenciales (ej. Google Earth Engine)
 │   ├── producers/                 # Scripts Python de ingesta hacia Kafka (INAMHI, NOAA, CELEC, SNGR, etc.)
 │   └── spark/                     # PySpark (Structured Streaming) limpia y calcula el índice compuesto de riesgo
 ├── docker/                        # Dockerfiles e imágenes personalizadas (ej. clúster Hadoop/HDFS)
 ├── docs/                          # Diagramas de arquitectura y documentación técnica complementaria
-├── frontend/                      # Dashboard web interactivo con mapas (Leaflet/Mapbox, capas de riesgo, simulación)
+├── frontend/                      # Dashboard web interactivo con mapas (MapLibre, capas de riesgo, simulación)
+├── tests/                         # Tests del índice de riesgo y del contrato productor ↔ Spark
 └── docker-compose.yml             # Orquestador principal unificado (Hadoop, Kafka, Spark, API, Productores)
 ```
 
@@ -111,6 +116,21 @@ Para que los productores de datos funcionen correctamente, es necesario configur
 4. **Google Earth Engine (GEE):** El proyecto requiere una cuenta de servicio de Google Cloud con la API de Earth Engine habilitada. Descarga la llave en formato JSON de tu cuenta de servicio y colócala en `backend/env/credentials.json`. Asegúrate de que el nombre de este archivo coincida con la ruta montada y declarada en la variable `GEE_CREDENTIALS_PATH` dentro de tu `.env`.
 
 > **Nota:** El archivo `.env` y el JSON de credenciales de GEE deben mantenerse privados. El repositorio ya incluye una plantilla `.env.example` segura para guiarte.
+>
+> Sin `backend/env/.env` el `docker compose` no arranca: lo consumen tanto el contenedor de productores
+> como la API (que necesita `OPENWEATHERMAP_API_KEY` para su endpoint proxy `/api/clima/punto`).
+> **Ninguna clave debe volver al frontend:** el dashboard consulta siempre a la API.
+
+### 🧪 Tests y linting
+
+El índice de riesgo y el contrato de datos entre productores y Spark están cubiertos por tests que
+corren sin Docker ni el pipeline levantado:
+
+```bash
+pip install -r requirements-dev.txt
+pytest tests -q
+ruff check .
+```
 
 ## 🚀 Despliegue Rápido (Todo Dockerizado)
 
@@ -127,7 +147,7 @@ docker compose up -d
 
 1. Se inicializan **Hadoop** (NameNode, DataNode, ResourceManager) y **Kafka** (Zookeeper, Kafka broker).
 2. Un contenedor de inicialización (`init-kafka`) crea automáticamente todos los tópicos requeridos (gee-data, alertas-sngr, noaa-data, etc.).
-3. Los productores (contenedor `producers`) inician la extracción de fuentes de datos en tiempo real y publican los eventos en los tópicos de Kafka.
+3. Los productores (contenedor `producers`) inician la extracción de fuentes de datos en tiempo real y publican los eventos en los tópicos de Kafka. `run_producers.py` los supervisa: si uno muere, lo reinicia con backoff creciente y lo reporta en los logs. Cada fuente tiene su propia cadencia (INOCAR y alertas cada 15 min; el resto, horaria), configurable por variables `INTERVALO_*` en el `.env`.
 4. **Spark** (Master y Worker) se despliega, y el contenedor `spark-submitter` envía automáticamente el job de streaming, procesando la data de Kafka, calculando el índice de riesgo de inundación local, y guardando los resultados en formato Parquet dentro de HDFS.
 5. La **API** se levanta y se conecta directamente a HDFS, exponiendo los resultados analizados.
 
@@ -160,5 +180,13 @@ El frontend se alimenta de estos endpoints para mostrar el monitoreo en tiempo r
 - `GET /api/mareas/actual` - Altura de marea actual en el estuario (INOCAR).
 - `GET /api/embalse/actual` - Nivel y caudal de descarga actual del embalse Daule-Peripa (CELEC).
 - `GET /api/alertas/recientes` - Últimas alertas y reportes de afectaciones crudas provistas por la SNGR.
-- `GET /api/escenario/simular?precip_24h_mm=X&altura_marea_m=Y&caudal_embalse_m3s=Z` - Recalcula interactivamente el riesgo para todas las zonas usando valores hipotéticos sin tocar HDFS.
-- `GET /data/{filename}` - Capa de compatibilidad legacy para que el frontend lea archivos (JSON/GeoJSON) directamente de HDFS.
+- `GET /api/escenario/simular?precip_24h_mm=X&altura_marea_m=Y&nivel_embalse_msnm=Z` - Recalcula interactivamente el riesgo para todas las zonas usando valores hipotéticos sin tocar HDFS. El embalse se expresa como **cota en msnm**, que es lo que publica CELEC (no caudal de descarga).
+- `GET /api/clima/punto?lat=X&lon=Y` - Proxy de OpenWeatherMap. Existe para que la API key viva en el servidor y no en el JavaScript del dashboard.
+- `GET /data/{filename}` - Capa de compatibilidad legacy para que el frontend lea archivos (JSON/GeoJSON) directamente de HDFS. Acepta solo nombres de una allowlist explícita.
+
+### 🔍 Procedencia de los datos del índice
+
+Cada fila de `processed/indice_riesgo` incluye `origen_precip`, `origen_marea` y `origen_embalse`
+(`real` o `default`) y el flag `datos_completos`. Cuando una fuente todavía no aportó ningún dato, el
+índice se calcula igual con un valor de respaldo, pero queda marcado: una fila calculada con
+respaldos no es indistinguible de una construida con lecturas reales.

@@ -8,11 +8,12 @@ Requiere autenticación previa (earthengine authenticate).
 """
 
 
-import os
-from common.kafka_client import build_producer, run_loop
-import json
 import datetime
+import json
+import os
 import traceback
+
+from common.kafka_client import build_producer, run_loop
 
 try:
     # pyrefly: ignore [missing-import]
@@ -20,6 +21,17 @@ try:
     EE_AVAILABLE = True
 except ImportError:
     EE_AVAILABLE = False
+
+INTERVAL_SECONDS = int(os.environ.get("INTERVALO_CLIMA", 60 * 60))
+# Ventana relativa: antes las colecciones estaban filtradas a 2026-01-01..15,
+# así que cada ciclo horario reprocesaba el mismo bloque fijo.
+VENTANA_DIAS = int(os.environ.get("VENTANA_DIAS_CLIMA", 15))
+
+
+def _ventana_fechas():
+    hoy = datetime.datetime.now(datetime.UTC).date()
+    desde = hoy - datetime.timedelta(days=VENTANA_DIAS)
+    return desde.isoformat(), hoy.isoformat()
 
 
 def test_connection():
@@ -32,7 +44,7 @@ def test_connection():
         print("[*] Intentando inicializar Google Earth Engine...")
         credentials_path = os.environ.get("GEE_CREDENTIALS_PATH")
         if credentials_path and os.path.exists(credentials_path):
-            with open(credentials_path, 'r') as f:
+            with open(credentials_path) as f:
                 creds_json = json.load(f)
             credentials = ee.ServiceAccountCredentials(creds_json['client_email'], credentials_path)
             ee.Initialize(credentials, project='ensostreamingpipeline')
@@ -53,17 +65,19 @@ def ingest_data():
         nino34 = ee.Geometry.Rectangle([-170, -5, -120, 5])
         nino12 = ee.Geometry.Rectangle([-90, -10, -80, 0])
 
-        # Consultamos OISST para enero de 2026 (ejemplo temporal)
+        # Ventana móvil de los últimos VENTANA_DIAS días
+        inicio, fin = _ventana_fechas()
+
         oisst_collection = ee.ImageCollection("NOAA/CDR/OISST/V2_1")\
-                            .filterDate('2026-01-01', '2026-01-15')
+                            .filterDate(inicio, fin)
 
         # Consultamos GPM (Precipitación) para el mismo periodo
         gpm_collection = ee.ImageCollection("NASA/GPM_L3/IMERG_V07")\
-                            .filterDate('2026-01-01', '2026-01-15')\
+                            .filterDate(inicio, fin)\
                             .select('precipitation')
 
         # Convertimos a listas
-        img_list = oisst_collection.toList(15)
+        img_list = oisst_collection.toList(VENTANA_DIAS)
         size = img_list.length().getInfo()
         # Para simplificar, obtenemos la precipitación promedio de toda la colección
         # y la aplicamos al último registro, o calculamos un valor diario.
@@ -91,7 +105,7 @@ def ingest_data():
                 scale=25000,
                 maxPixels=1e9
             ).getInfo()
-            
+
             # Promediamos en Niño 3 y Niño 4
             stats_3 = img.select(['sst', 'anom']).reduceRegion(
                 reducer=ee.Reducer.mean(),
@@ -172,14 +186,19 @@ def ingest_data():
 
 
 def run_producer():
-    test_connection()
+    # Antes el resultado se descartaba: sin GEE disponible el productor entraba
+    # igual al loop y fallaba cada hora sin publicar nada.
+    if not test_connection():
+        print("[-] GEE no disponible; el productor no arranca el loop.")
+        return
+
     producer = build_producer()
     def _fetch():
         data = ingest_data()
         if data:
             return [data]
         return []
-    run_loop(producer, "gee-data", _fetch, interval_seconds=3600)
+    run_loop(producer, "gee-data", _fetch, interval_seconds=INTERVAL_SECONDS)
 
 if __name__ == "__main__":
     run_producer()

@@ -1,0 +1,23 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["backend", "backend/spark", "backend/producers"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = [".venv", "docker"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = [
+    "E501",  # el largo de línea lo controla `line-length`, sin fallar el build
+]
+
+[tool.ruff.lint.per-file-ignores]
+# `app.py` importa risk_index después de resolver SPARK_APP_DIR y agregarlo al
+# path: el import no puede ir arriba del todo.
+# B008: `Query(...)` en los defaults es el idioma de FastAPI para declarar
+# parámetros, no una llamada accidental.
+"api/app.py" = ["E402", "B008"]
+"tests/*" = ["E402"]
