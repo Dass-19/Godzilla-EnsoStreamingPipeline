@@ -128,7 +128,7 @@ ve. `/data/{filename}` es capa legacy con allowlist explícita.
 ### Frontend (`frontend/`)
 HTML/CSS/JS sin build step ni gestor de paquetes: MapLibre GL, Chart.js y Turf por CDN, con versión
 exacta y `integrity` (SRI). Se sirve como estático desde la propia API en `/dashboard`, y el objeto
-`CONFIG` al inicio de [app.js](frontend/app.js) usa rutas **relativas** (`/api/`, `/data/`).
+`CONFIG` en [config.js](frontend/js/config.js) usa rutas **relativas** (`/api/`, `/data/`).
 Datos de terceros se insertan con `textContent`/`createElement`, nunca interpolados en `innerHTML`.
-`index.html` cachebustea con querystring (`app.js?v=9`, `styles.css?v=14`) — **incrementar ese número
+`index.html` cachebustea con querystring (`js/main.js?v=10`, `styles.css?v=14`) — **incrementar ese número
 al editar** o el navegador servirá la versión vieja.
