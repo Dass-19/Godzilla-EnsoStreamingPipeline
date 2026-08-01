@@ -6,6 +6,8 @@ Parquet, calcula el índice de riesgo de inundación por sector en Guayaquil y
 almacena los resultados procesados en HDFS.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import os

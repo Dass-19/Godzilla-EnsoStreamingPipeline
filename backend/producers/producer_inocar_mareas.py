@@ -13,6 +13,8 @@ Además expone `cargar_historico()` para extraer todos los eventos reales
 disponibles desde 2022 hasta hoy.
 """
 
+from __future__ import annotations
+
 import math
 import os
 from datetime import UTC, datetime

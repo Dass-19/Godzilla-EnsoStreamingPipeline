@@ -19,6 +19,8 @@ informe técnico pueda justificarlos y, si hace falta, calibrarlos contra
 las zonas históricamente inundables como validación.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 # Umbrales de normalización (ajustables; documentar la justificación en el informe)

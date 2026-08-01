@@ -12,8 +12,8 @@ from common.kafka_client import build_producer, run_loop
 INTERVAL_SECONDS = int(os.environ.get("INTERVALO_NIVEL_RIO", 12 * 60 * 60))
 TOPIC_NIVEL_RIO = "inamhi-nivel-rio"
 
-URL_ESTACIONES_HIDRO = "https://servicios.gestionderiesgos.gob.ec/api_visor/station_information/estaciones/?id_provincia=09"
-URL_NIVEL_RIO = "https://servicios.gestionderiesgos.gob.ec/api_visor/station_data_automaticas/get_data_hour/"
+URL_ESTACIONES_HIDRO = "https://inamhi.gob.ec/api_visor/station_information/estaciones/?id_provincia=09"
+URL_NIVEL_RIO = "https://inamhi.gob.ec/api_visor/station_data_automaticas/get_data_hour/"
 
 
 def fetch_inamhi_nivel_rio() -> list[dict]:

@@ -23,6 +23,8 @@ alerta: retorna una lista vacía (igual que "no hubo alertas nuevas este
 ciclo"), que es semánticamente correcto para una fuente event-driven.
 """
 
+from __future__ import annotations
+
 import os
 import re
 

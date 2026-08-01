@@ -6,6 +6,8 @@ Consulta la estación radar `gyer` (Guayaquil - Río Guayas, lat -2.195, lon
 en metros.
 """
 
+from __future__ import annotations
+
 import os
 import certifi
 import requests

@@ -14,8 +14,8 @@ from contracts import TOPIC_PRECIP_ESTACIONES, construir_lluvia_estacion
 
 INTERVAL_SECONDS = int(os.environ.get("INTERVALO_PRECIPITACION", 15 * 60))
 
-URL_ESTACIONES = "https://servicios.gestionderiesgos.gob.ec/api_visor/station_information/estaciones/?id_provincia=09"
-URL_PRECIPITACION = "https://servicios.gestionderiesgos.gob.ec/api_visor/station_data_automaticas/get_precipitation/"
+URL_ESTACIONES = "https://inamhi.gob.ec/api_visor/station_information/estaciones/?id_provincia=09"
+URL_PRECIPITACION = "https://inamhi.gob.ec/api_visor/station_data_automaticas/get_precipitation/"
 
 
 def fetch_inamhi_precipitacion() -> dict:

@@ -13,6 +13,8 @@ reinicia el que muera.
 fetch_fn() debe retornar una lista de dicts (uno por medición/evento).
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import os

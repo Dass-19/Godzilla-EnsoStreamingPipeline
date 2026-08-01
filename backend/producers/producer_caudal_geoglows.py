@@ -6,6 +6,10 @@ Monitorea los tramos hidrológicos del río Guayas (river_id=670078246), río Da
 porque la resolución por coordenadas puede enganchar afluentes menores.
 """
 
+from __future__ import annotations
+
+import csv
+import io
 import os
 import requests
 from common.kafka_client import build_producer, run_loop
@@ -20,37 +24,54 @@ URL_GEOGLOWS = f"https://geoglows.ecmwf.int/api/v2/forecast/{RIVER_ID_GUAYAS}"
 
 def fetch_caudal_geoglows() -> list[dict]:
     try:
-        resp = requests.get(URL_GEOGLOWS, timeout=12)
+        resp = requests.get(URL_GEOGLOWS, params={"format": "json"}, timeout=12)
         if not resp.ok:
             print(f"[-] GEOGLOWS API respondió {resp.status_code}")
             return []
-        data = resp.json()
 
-        # Extraemos la mediana del caudal forecast
-        flow_med = data.get("flow_median_m3s") or data.get("flow_m3s") or []
-        if not flow_med:
-            # Fallback a estructura de registros si viene en lista de dicts
-            forecast_list = data.get("forecast") or []
-            if isinstance(forecast_list, list) and forecast_list:
-                reciente = forecast_list[0]
-                if isinstance(reciente, dict):
-                    val = float(reciente.get("flow_m3s", 0.0) or 0.0)
-                    payload = construir_caudal(
-                        river_id=RIVER_ID_GUAYAS,
-                        caudal_m3s=val,
-                        tramo="Guayas",
+        caudal_val = None
+
+        # 1. Intento de parseo JSON (?format=json)
+        try:
+            data = resp.json()
+            if isinstance(data, dict):
+                flow_med = (
+                    data.get("flow_median")
+                    or data.get("flow_median_m3s")
+                    or data.get("flow_m3s")
+                    or []
+                )
+                if isinstance(flow_med, list) and flow_med:
+                    caudal_val = float(flow_med[0])
+                elif isinstance(flow_med, (int, float)):
+                    caudal_val = float(flow_med)
+        except Exception:
+            pass
+
+        # 2. Fallback a parseo CSV (si la API responde en formato CSV)
+        if caudal_val is None:
+            try:
+                f = io.StringIO(resp.text)
+                reader = csv.DictReader(f)
+                for row in reader:
+                    val_str = (
+                        row.get("flow_median")
+                        or row.get("flow_median_m3s")
+                        or row.get("flow_m3s")
                     )
-                    print(f"[+] Caudal GEOGLOWS Guayas: {val} m3/s")
-                    return [payload]
+                    if val_str:
+                        caudal_val = float(val_str)
+                        break
+            except Exception:
+                pass
 
-        if isinstance(flow_med, list) and flow_med:
-            val = float(flow_med[0])
+        if caudal_val is not None:
             payload = construir_caudal(
                 river_id=RIVER_ID_GUAYAS,
-                caudal_m3s=val,
+                caudal_m3s=caudal_val,
                 tramo="Guayas",
             )
-            print(f"[+] Caudal GEOGLOWS Guayas: {val} m3/s")
+            print(f"[+] Caudal GEOGLOWS Guayas: {caudal_val} m3/s")
             return [payload]
 
         print("[-] GEOGLOWS: payload sin datos de caudal")

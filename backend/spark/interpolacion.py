@@ -5,6 +5,8 @@ Python puro sin dependencias de Spark, para que pueda ser importado tanto por
 el job de PySpark (`spark_streaming_job.py`) como por la API FastAPI (`app.py`).
 """
 
+from __future__ import annotations
+
 import math
 from typing import Sequence, TypeVar, Protocol
 

@@ -12,6 +12,8 @@ Ninguna función de aquí levanta excepciones por datos ausentes: devuelven
 (`real` vs `default`) en la salida.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Any
 
@@ -57,7 +59,6 @@ class LluviaEstacion:
     fecha_ultimo_dato: str
 
 
-
 @dataclass(frozen=True)
 class Lectura:
     """
@@ -68,8 +69,8 @@ class Lectura:
     calculada con tres defaults no sea indistinguible de una fila real.
     """
 
-    valor: float
-    origen: str
+    valor: float = 0.0
+    origen: str = ""
     detalle: str = ""
 
     @property

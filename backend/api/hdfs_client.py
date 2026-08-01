@@ -11,6 +11,8 @@ Provee dos garantías principales:
 2. Acota lecturas mediante límites de particiones.
 """
 
+from __future__ import annotations
+
 import io
 import logging
 from functools import lru_cache

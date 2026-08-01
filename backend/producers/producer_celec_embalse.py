@@ -16,6 +16,8 @@ Cuando sí logra extraer un valor real de una publicación, lo marca como
 que sea auditable en el dashboard/informe.
 """
 
+from __future__ import annotations
+
 import html
 import os
 import re
