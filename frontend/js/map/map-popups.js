@@ -117,22 +117,95 @@ export function initMapInteractions() {
             if (elevation === null) return;
 
             const val = Math.max(0, elevation);
+            const tide = window.currentTideHeight ?? 2.8;
+            const precip = window.currentPrecipSum ?? 0;
+            const nino12 = window.noaaAnomalies?.n12 ?? 0;
+
             let riskLevel = "Bajo";
             let riskColor = "#4ade80";
+            let riskBg = "rgba(74, 222, 128, 0.15)";
+            let altColor = "#4ade80";
 
-            if (val < 2) { riskLevel = "Alto / Crítico"; riskColor = "#f87171"; }
-            else if (val < 5) { riskLevel = "Medio"; riskColor = "#facc15"; }
+            if (val < 2.0 || (val < 4.0 && tide >= 2.5)) {
+                riskLevel = "Alto / Crítico";
+                riskColor = "#ef4444";
+                riskBg = "rgba(239, 68, 68, 0.15)";
+                altColor = "#ef4444";
+            } else if (val < 5.0) {
+                riskLevel = "Medio";
+                riskColor = "#facc15";
+                riskBg = "rgba(250, 204, 21, 0.15)";
+                altColor = "#facc15";
+            }
+
+            const tideDesc = tide >= 2.5 ? "Pleamar / Alta" : "Normal";
+            const tideColor = tide >= 2.5 ? "#ef4444" : "#4ade80";
+
+            // Construcción dinámica de argumentos de riesgo
+            const factores = [];
+
+            if (val <= 2.0) {
+                factores.push(`<b>Cota Crítica (≤2.0m):</b> Depresión plana propensa a empozamiento sin pendiente de desagüe natural.`);
+            } else if (val <= 5.0) {
+                factores.push(`<b>Cota Baja (2.0m–5.0m):</b> Susceptible a anegamiento si la lluvia coincide con marea alta.`);
+            } else {
+                factores.push(`<b>Elevación Adecuada (>5.0m):</b> Facilita la escorrentía por gravedad.`);
+            }
+
+            if (tide >= 2.5) {
+                factores.push(`<b>Taponamiento por Pleamar (+${tide.toFixed(2)}m):</b> El nivel del río bloquea la descarga de la red de alcantarillado.`);
+            } else {
+                factores.push(`<b>Marea Moderada (+${tide.toFixed(2)}m):</b> Colectores pluviales operan sin contra-presión estuarine.`);
+            }
+
+            if (precip > 0) {
+                factores.push(`<b>Precipitación Registrada (${precip.toFixed(1)}mm):</b> Volumen activo de agua sobre la cuenca urbana.`);
+            }
+
+            if (nino12 >= 1.5) {
+                factores.push(`<b>Amplificación El Niño (+${nino12.toFixed(1)}°C):</b> Calentamiento costero incrementa la intensidad de tormentas.`);
+            }
+
+            const factoresHtml = factores.map(f => `<li style="margin-bottom: 4px;">${f}</li>`).join('');
 
             const popupHtml = `
-                <div style="color: #1e293b; font-family: Inter;">
-                    <h4 style="margin:0 0 5px 0;">Análisis de Vulnerabilidad</h4>
-                    <p style="margin:0 0 5px 0; font-size: 12px;">Altitud Terreno: <b>${val.toFixed(1)} m</b></p>
-                    <p style="margin:0 0 10px 0; font-size: 12px;">Riesgo Inundación: <b style="color: ${riskColor};">${riskLevel}</b></p>
-                    ${val < 5 ? `<button id="btn-evac" style="background:#ef4444; color:white; border:none; padding:8px; border-radius:4px; cursor:pointer; width:100%; font-size:11px; font-weight:bold;">🚨 Trazar Ruta Evacuación</button>` : '<p style="font-size:11px; color:#64748b; margin:0;">Zona segura (No requiere evacuación)</p>'}
+                <div style="color: #1e293b; font-family: Inter, system-ui, sans-serif; width: 270px; padding: 2px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-bottom: 8px;">
+                        <h4 style="margin: 0; font-size: 13px; font-weight: 700; color: #0f172a;">Análisis de Vulnerabilidad</h4>
+                        <span style="background: ${riskBg}; color: ${riskColor}; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px; border: 1px solid ${riskColor};">${riskLevel}</span>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px; font-size: 11px;">
+                        <div style="background: #f8fafc; padding: 6px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                            <span style="color: #64748b; display: block; font-size: 9px; font-weight: 600;">ALTITUD TERRENO</span>
+                            <b style="color: ${altColor}; font-size: 12px;">${val.toFixed(1)} m s.n.m.</b>
+                        </div>
+                        <div style="background: #f8fafc; padding: 6px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                            <span style="color: #64748b; display: block; font-size: 9px; font-weight: 600;">NIVEL MAREA RÍO</span>
+                            <b style="color: ${tideColor}; font-size: 12px;">${tide.toFixed(2)} m (${tideDesc})</b>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 10px;">
+                        <span style="font-size: 10px; font-weight: 700; color: #475569; display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.4px;">Argumentación del Riesgo:</span>
+                        <ul style="margin: 0; padding-left: 14px; font-size: 10.5px; color: #334155; line-height: 1.35;">
+                            ${factoresHtml}
+                        </ul>
+                    </div>
+
+                    ${val < 5.0 ? `
+                        <button id="btn-evac" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; width: 100%; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 2px 4px rgba(239, 68, 68, 0.25); transition: all 0.2s;">
+                            <span>🚨</span> Trazar Ruta a Zona Segura
+                        </button>
+                    ` : `
+                        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 6px; border-radius: 6px; font-size: 10px; text-align: center; font-weight: 600;">
+                            ✓ Zona segura por elevación (Sin evacuación)
+                        </div>
+                    `}
                 </div>
             `;
 
-            setCurrentPopup(new maplibregl.Popup().setLngLat(e.lngLat).setHTML(popupHtml).addTo(map));
+            setCurrentPopup(new maplibregl.Popup({ maxWidth: '300px' }).setLngLat(e.lngLat).setHTML(popupHtml).addTo(map));
 
             setTimeout(() => {
                 const btnEvac = document.getElementById('btn-evac');

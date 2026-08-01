@@ -92,6 +92,18 @@
     <div id="view-toggle-pill" class="view-toggle-container">
         <button id="btn-regional" class="view-toggle-btn active">🌍 Vista Regional</button>
         <button id="btn-local" class="view-toggle-btn">🏙️ Vista Local</button>
+        <select id="select-parroquia" class="parroquia-select hidden" title="Enfocar Parroquia / Barrio">
+            <option value="">-- Enfocar Parroquia / Sector --</option>
+            <option value="TARQUI_URDESA">📍 Tarqui - Urdesa / Ceibos</option>
+            <option value="TARQUI_SAUCES">📍 Tarqui - Sauces / Alborada</option>
+            <option value="FEBRES_CORDERO">📍 Febres Cordero - Suburbio</option>
+            <option value="XIMENA_GUASMO">📍 Ximena - Guasmo / Sur</option>
+            <option value="PASCUALES">📍 Pascuales - Mucho Lote</option>
+            <option value="CHONGON">📍 Chongón - Vía a la Costa</option>
+            <option value="CENTRO">📍 Centro - Puerto Santa Ana</option>
+            <option value="SAMBORONDON">📍 Samborondón (Cuenca)</option>
+            <option value="DAULE">📍 Daule (Cuenca Alta)</option>
+        </select>
     </div>
 
     <!-- Botón para ocultar/mostrar sidebar -->
@@ -325,6 +337,45 @@
                                 style="font-weight: bold; font-size: 14px; display: block;">--</span>
                         </div>
                     </div>
+                </div>
+            </section>
+
+            <!-- Hidrología y Flujo de Cuenca Card -->
+            <section class="card" id="hidrologia-card">
+                <h3>🌊 Hidrología & Flujo de Cuenca</h3>
+                <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                    <div style="width: 48%;">
+                        <div style="margin-bottom: 10px;">
+                            <span class="label" style="font-size: 10px; line-height: 1.2; display: block; margin-bottom: 2px;">CAUDAL RÍO GUAYAS<br>(GEOGLOWS)</span>
+                            <span class="value" id="val-caudal-rio" style="font-size: 18px; font-weight: bold; color: #38bdf8;">-- m³/s</span>
+                        </div>
+                        <div>
+                            <span class="label" style="font-size: 10px; line-height: 1.2; display: block; margin-bottom: 2px;">ESTADO FLUVIAL</span>
+                            <span id="val-caudal-estado" style="font-size: 11px; font-weight: bold; color: #4ade80;">Normal</span>
+                        </div>
+                    </div>
+                    <div style="width: 48%;">
+                        <div style="margin-bottom: 10px;">
+                            <span class="label" style="font-size: 10px; line-height: 1.2; display: block; margin-bottom: 2px;">MAREA REAL (IOC)<br>ESTACIÓN GYER</span>
+                            <span class="value" id="val-marea-ioc" style="font-size: 18px; font-weight: bold; color: #60a5fa;">-- m</span>
+                        </div>
+                        <div>
+                            <span class="label" style="font-size: 10px; line-height: 1.2; display: block; margin-bottom: 2px;">ANOMALÍA ESTUARINE</span>
+                            <span id="val-anomalia-marea" style="font-size: 11px; font-weight: bold; color: #facc15;">-- m vs teórica</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Alertas e Incidentes SGR Card -->
+            <section class="card" id="sgr-incidencias-card">
+                <h3>🚨 Incidentes por Lluvia (SGR)</h3>
+                <div style="display: flex; justify-content: space-between; margin-top: 8px; margin-bottom: 8px; font-size: 11px;">
+                    <div><span class="label">EVENTOS GUAYAS:</span> <b id="val-sgr-count" style="color: #ea580c;">--</b></div>
+                    <div><span class="label">AFECTADOS:</span> <b id="val-sgr-afectados" style="color: #ef4444;">-- pers.</b></div>
+                </div>
+                <div id="sgr-incidencias-list" style="max-height: 120px; overflow-y: auto; font-size: 11px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 6px;">
+                    <div style="text-align: center; color: #94a3b8; padding: 10px;">Cargando incidentes...</div>
                 </div>
             </section>
 

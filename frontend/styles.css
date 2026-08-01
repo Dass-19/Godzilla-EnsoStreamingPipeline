@@ -318,3 +318,37 @@ header p { font-size: 0.85rem; color: #94a3b8; }
    Ver el comentario en index.html sobre por qué se eliminó ese <script>. */
 .p-2 { padding: 0.5rem; }
 .rounded { border-radius: 0.25rem; }
+
+/* Parroquia Selector Dropdown */
+.parroquia-select {
+    background: rgba(15, 23, 42, 0.9);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.4);
+    border-radius: 20px;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: bold;
+    outline: none;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    transition: all 0.2s ease;
+}
+.parroquia-select:hover, .parroquia-select:focus {
+    background: #1e293b;
+    border-color: #38bdf8;
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+}
+.parroquia-select option {
+    background: #0f172a;
+    color: #f8fafc;
+}
+
+/* Incident Items */
+.sgr-incident-item {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 6px 0;
+}
+.sgr-incident-item:last-child {
+    border-bottom: none;
+}
+

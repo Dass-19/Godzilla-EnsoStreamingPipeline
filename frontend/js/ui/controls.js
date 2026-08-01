@@ -5,6 +5,18 @@
 import { CONFIG } from '../config.js';
 import { map, isLayersLoaded } from '../map/map-manager.js';
 
+const PARROQUIAS_COORDS = {
+    "TARQUI_URDESA": { center: [-79.912, -2.165], zoom: 14, pitch: 45 },
+    "TARQUI_SAUCES": { center: [-79.898, -2.132], zoom: 14, pitch: 45 },
+    "FEBRES_CORDERO": { center: [-79.918, -2.205], zoom: 14, pitch: 45 },
+    "XIMENA_GUASMO": { center: [-79.892, -2.255], zoom: 14, pitch: 45 },
+    "PASCUALES": { center: [-79.925, -2.085], zoom: 13.5, pitch: 40 },
+    "CHONGON": { center: [-80.080, -2.240], zoom: 13, pitch: 35 },
+    "CENTRO": { center: [-79.882, -2.190], zoom: 14.5, pitch: 50 },
+    "SAMBORONDON": { center: [-79.865, -2.090], zoom: 12.5, pitch: 30 },
+    "DAULE": { center: [-79.980, -1.865], zoom: 12, pitch: 30 }
+};
+
 export function initUIControls() {
     // Botón Vista Regional
     document.getElementById('btn-regional')?.addEventListener('click', () => {
@@ -14,6 +26,7 @@ export function initUIControls() {
         document.getElementById('local-layer-control')?.classList.add('hidden');
         document.getElementById('tracker-cards')?.classList.remove('hidden');
         document.getElementById('local-cards')?.classList.add('hidden');
+        document.getElementById('select-parroquia')?.classList.add('hidden');
 
         const thermalCheckbox = document.getElementById('toggle-thermal');
         const sstCheckbox = document.getElementById('toggle-sst');
@@ -42,6 +55,7 @@ export function initUIControls() {
         document.getElementById('local-layer-control')?.classList.remove('hidden');
         document.getElementById('tracker-cards')?.classList.add('hidden');
         document.getElementById('local-cards')?.classList.remove('hidden');
+        document.getElementById('select-parroquia')?.classList.remove('hidden');
         document.getElementById('sst-legend')?.classList.add('hidden');
         document.getElementById('time-lapse-panel')?.classList.add('hidden');
 
@@ -54,6 +68,20 @@ export function initUIControls() {
         ];
         regionalLayers.forEach(layer => {
             if (map.getLayer(layer)) map.setLayoutProperty(layer, 'visibility', 'none');
+        });
+    });
+
+    // Selector de Parroquias / Barrios
+    document.getElementById('select-parroquia')?.addEventListener('change', (e) => {
+        const val = e.target.value;
+        if (!val || !map || !PARROQUIAS_COORDS[val]) return;
+        const p = PARROQUIAS_COORDS[val];
+        map.flyTo({
+            center: p.center,
+            zoom: p.zoom,
+            pitch: p.pitch,
+            bearing: -10,
+            duration: 2000
         });
     });
 

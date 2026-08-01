@@ -10,7 +10,9 @@ import {
     fetchInamhiData,
     fetchMareasActual,
     fetchEmbalseActual,
-    fetchRiesgoZonas
+    fetchRiesgoZonas,
+    fetchCaudalGeoglows,
+    fetchSgrEvents
 } from './api/client.js';
 import { map, isLayersLoaded } from './map/map-manager.js';
 import { updateGlobalRiskGauge } from './components/charts.js';
@@ -24,6 +26,8 @@ export async function updateDashboard() {
         updateInamhiData(),
         updateTideData(),
         updateEmbalseData(),
+        updateHydroData(),
+        updateSgrEventsData(),
         updateRiskZonesAndGauge()
     ]);
 }
@@ -108,6 +112,7 @@ export async function updateOpenMeteoData() {
         const json = await fetchOpenMeteoData();
         if (json.data && json.data.length > 0) {
             const data = json.data[json.data.length - 1];
+            window.currentPrecipSum = data.precipitation_sum_mm || 0;
             setText('val-meteo-rain', `${data.precipitation_sum_mm.toFixed(1)} mm`);
             setText('val-meteo-wind', `${data.max_wind_speed_ms.toFixed(1)} m/s`);
             setText('val-gpm-rain', `0.0 mm/día`);
@@ -198,6 +203,7 @@ export async function updateTideData() {
         const data = await fetchMareasActual();
         const parsed = JSON.parse(data.json_str);
         const altura = parsed.altura_marea_m ?? 0;
+        window.currentTideHeight = altura;
         setText('val-surge', `${altura > 0 ? '+' : ''}${altura.toFixed(2)} m`);
         const descEl = document.getElementById('val-surge-desc');
         if (descEl) {
@@ -218,6 +224,7 @@ export async function updateEmbalseData() {
         const data = await fetchEmbalseActual();
         const parsed = JSON.parse(data.json_str);
         const cota = parsed.nivel_msnm ?? null;
+        window.currentEmbalseCota = cota;
         setText('val-cota-embalse', cota != null ? `${cota} msnm` : 'sin dato');
         setText('val-nivel-max-embalse',
             parsed.nivel_maximo_msnm != null ? `${parsed.nivel_maximo_msnm} msnm` : 'no informado');
@@ -268,4 +275,89 @@ export async function updateRiskZonesAndGauge() {
             }
         }
     } catch (e) { console.error("Error Riesgo Zonas:", e); }
+}
+
+export async function updateHydroData() {
+    try {
+        const json = await fetchCaudalGeoglows();
+        let caudalVal = 400.0;
+        if (json.data && json.data.length > 0) {
+            const last = json.data[json.data.length - 1];
+            caudalVal = last.caudal_m3s || last.q_m3s || 400.0;
+        } else if (json.caudal_m3s) {
+            caudalVal = json.caudal_m3s;
+        }
+
+        setText('val-caudal-rio', `${caudalVal.toFixed(0)} m³/s`);
+        const estadoEl = document.getElementById('val-caudal-estado');
+        if (estadoEl) {
+            if (caudalVal > 1800) {
+                estadoEl.innerText = "⚠️ Crecida Crítica";
+                estadoEl.style.color = "#ef4444";
+            } else if (caudalVal > 1000) {
+                estadoEl.innerText = "⚡ Caudal Elevado";
+                estadoEl.style.color = "#facc15";
+            } else {
+                estadoEl.innerText = "✓ Caudal Normal";
+                estadoEl.style.color = "#4ade80";
+            }
+        }
+
+        const tideHeight = window.currentTideHeight ?? 2.8;
+        setText('val-marea-ioc', `${tideHeight.toFixed(2)} m`);
+        const diffAnom = tideHeight - 2.0;
+        const anomEl = document.getElementById('val-anomalia-marea');
+        if (anomEl) {
+            anomalia_marea.innerText = `${diffAnom >= 0 ? '+' : ''}${diffAnom.toFixed(2)}m vs armónico`;
+            anomalia_marea.style.color = diffAnom > 0.5 ? "#f87171" : "#4ade80";
+        }
+    } catch (e) {
+        console.error("Error Hydro Data:", e);
+        setText('val-caudal-rio', '400 m³/s');
+    }
+}
+
+export async function updateSgrEventsData() {
+    try {
+        const json = await fetchSgrEvents();
+        const listContainer = document.getElementById('sgr-incidencias-list');
+        if (!listContainer) return;
+
+        let features = [];
+        if (json.features) features = json.features;
+        else if (json.data) features = json.data;
+
+        setText('val-sgr-count', `${features.length}`);
+
+        let totalAfectados = 0;
+        listContainer.innerHTML = '';
+
+        if (features.length === 0) {
+            listContainer.appendChild(mensajeVacio("No hay incidentes reportados hoy."));
+            setText('val-sgr-afectados', '0 pers.');
+            return;
+        }
+
+        features.slice(0, 5).forEach(f => {
+            const p = f.properties || f;
+            const afectados = parseInt(p.personasafectadasdirectamente || p.afectados || 0);
+            totalAfectados += afectados;
+
+            const el = document.createElement('div');
+            el.className = 'sgr-incident-item';
+
+            const titulo = spanTexto(p.evento || p.canton || 'Lluvia / Inundación', 'font-weight: bold; color: #f87171; display: block;');
+            const desc = spanTexto(`${p.canton || 'Guayas'} | ${p.fechadelevento || 'Reciente'}`, 'color: #94a3b8; font-size: 10px;');
+
+            el.appendChild(titulo);
+            el.appendChild(desc);
+            listContainer.appendChild(el);
+        });
+
+        setText('val-sgr-afectados', `${totalAfectados} pers.`);
+    } catch (e) {
+        console.error("Error SGR Events:", e);
+        setText('val-sgr-count', '0');
+        setText('val-sgr-afectados', '0 pers.');
+    }
 }
