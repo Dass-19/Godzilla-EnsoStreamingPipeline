@@ -18,7 +18,7 @@ def fetch_sgr_events():
 
     # Filtramos eventos solo para Guayaquil, Daule, Samborondón y Durán
     where_clause = "canton IN ('GUAYAQUIL', 'DAULE', 'SAMBORONDON', 'DURAN')"
-    url = f"https://sgrportal.gestionderiesgos.gob.ec/server/rest/services/Hosted/EVENTOS_X_LLUVIAS/FeatureServer/0/query?where={urllib.parse.quote(where_clause)}&outFields=*&f=geojson"
+    url = f"https://sgrportal.gestionderiesgos.gob.ec/server/rest/services/Hosted/EVENTOS_X_LLUVIAS/FeatureServer/0/query?where={urllib.parse.quote(where_clause)}&outFields=*&outSR=4326&f=geojson"
 
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})

@@ -171,18 +171,24 @@ Abre tu navegador y dirígete a:
 
 ## 📡 Endpoints Principales de la API
 
-El frontend se alimenta de estos endpoints para mostrar el monitoreo en tiempo real:
+El frontend se alimenta de endpoints REST normalizados bajo `/api/` respaldados por `RespuestaAPI`:
 
 - `GET /api/salud` - Endpoint básico para healthcheck y verificar el estado de la API (`{"estado": "ok"}`).
-- `GET /api/riesgo/zonas` - Último índice de riesgo compuesto calculado para todas las zonas de Guayaquil.
+- `GET /api/riesgo/zonas` - Último índice de riesgo compuesto calculado para las 22+ zonas y parroquias de Guayaquil.
 - `GET /api/riesgo/zonas/{zona_id}/historico` - Serie de tiempo histórico del índice de riesgo de una zona específica.
 - `GET /api/enso/estado` - Último estado ENSO (fase y anomalía SST) para el panel nacional/regional del dashboard.
+- `GET /api/enso/indices` - Serie temporal de índices macroclimáticos (ONI, SOI, Niño 1+2).
 - `GET /api/mareas/actual` - Altura de marea actual en el estuario (INOCAR).
-- `GET /api/embalse/actual` - Nivel y caudal de descarga actual del embalse Daule-Peripa (CELEC).
-- `GET /api/alertas/recientes` - Últimas alertas y reportes de afectaciones crudas provistas por la SNGR.
-- `GET /api/escenario/simular?precip_24h_mm=X&altura_marea_m=Y&nivel_embalse_msnm=Z` - Recalcula interactivamente el riesgo para todas las zonas usando valores hipotéticos sin tocar HDFS. El embalse se expresa como **cota en msnm**, que es lo que publica CELEC (no caudal de descarga).
+- `GET /api/embalse/actual` - Nivel y cota actual del embalse Daule-Peripa (CELEC).
+- `GET /api/clima/inamhi` - Pronóstico y alertas meteorológicas oficiales del INAMHI.
+- `GET /api/clima/open-meteo` - Pronóstico horaria de precipitación y temperatura (Open-Meteo).
+- `GET /api/hidrologia/geoglows` - Caudales simulados del Río Guayas y tributarios (GEOGLOWS ECMWF).
+- `GET /api/eventos/sgr` - Colección GeoJSON de incidentes de lluvia y afectaciones viales reportados por SGR.
+- `GET /api/capas/parroquias` - GeoJSON unificado de las 21 Parroquias Cantonales de Guayaquil (16 Urbanas + 5 Rurales).
+- `GET /api/capas/sectores` - GeoJSON de los Distritos Operativos de Respuesta Segura EP (A01 - A18).
+- `GET /api/capas/zonas-inundables` - Polígonos de zonas con riesgo histórico de anegamiento.
+- `GET /api/escenario/simular?precip_24h_mm=X&altura_marea_m=Y&nivel_embalse_msnm=Z` - Recalcula interactivamente el riesgo para todas las zonas usando valores hipotéticos sin tocar HDFS.
 - `GET /api/clima/punto?lat=X&lon=Y` - Proxy de OpenWeatherMap. Existe para que la API key viva en el servidor y no en el JavaScript del dashboard.
-- `GET /data/{filename}` - Capa de compatibilidad legacy para que el frontend lea archivos (JSON/GeoJSON) directamente de HDFS. Acepta solo nombres de una allowlist explícita.
 
 ### 🔍 Procedencia de los datos del índice
 

@@ -34,17 +34,17 @@ export async function fetchEnsoEstado() {
 }
 
 export async function fetchMacroIndexes() {
-    const res = await fetch(CONFIG.DATA_BASE + 'enso_indexes.json');
+    const res = await fetch(CONFIG.API_BASE + 'enso/indices');
     return await parseResponse(res, "Error consultando índices macro");
 }
 
 export async function fetchOpenMeteoData() {
-    const res = await fetch(CONFIG.DATA_BASE + 'open_meteo_data.json');
+    const res = await fetch(CONFIG.API_BASE + 'clima/open-meteo');
     return await parseResponse(res, "Error consultando Open-Meteo");
 }
 
 export async function fetchInamhiData() {
-    const res = await fetch(CONFIG.DATA_BASE + 'inamhi_data.json');
+    const res = await fetch(CONFIG.API_BASE + 'clima/inamhi');
     return await parseResponse(res, "Error consultando INAMHI");
 }
 
@@ -101,11 +101,21 @@ export async function fetchEvacuationRoute(startLngLat, endLngLat) {
 }
 
 export async function fetchCaudalGeoglows() {
-    const res = await fetch(CONFIG.DATA_BASE + 'caudal_geoglows.json');
+    const res = await fetch(CONFIG.API_BASE + 'hidrologia/geoglows');
     return await parseResponse(res, "Error consultando caudal GEOGLOWS");
 }
 
 export async function fetchSgrEvents() {
-    const res = await fetch(CONFIG.DATA_BASE + 'sgr_eventos.json');
+    const res = await fetch(CONFIG.API_BASE + 'eventos/sgr');
     return await parseResponse(res, "Error consultando eventos SGR");
+}
+
+export async function fetchCapasParroquias() {
+    const res = await fetch(CONFIG.API_BASE + 'capas/parroquias');
+    return await parseResponse(res, "Error consultando parroquias");
+}
+
+export async function fetchCapasSectores() {
+    const res = await fetch(CONFIG.API_BASE + 'capas/sectores');
+    return await parseResponse(res, "Error consultando sectores");
 }

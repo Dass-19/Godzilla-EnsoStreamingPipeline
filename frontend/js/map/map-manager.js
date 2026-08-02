@@ -53,8 +53,66 @@ export function initMap() {
     // Cargar Zonas Seguras para cálculo de rutas
     fetch(CONFIG.DATA_BASE + 'sgr_zonas_seguras.geojson')
         .then(r => r.json())
-        .then(d => { safeZonesGeoJSON = d; })
+        .then(d => { safeZonesGeoJSON = d.data ? d.data : (d.datos ? d.datos : d); })
         .catch(e => console.error('Error cargando zonas seguras:', e));
+
+    function extractGeoJSON(d) {
+        if (!d) return { type: 'FeatureCollection', features: [] };
+        let curr = d;
+        if (curr.data && typeof curr.data === 'object' && !curr.features) {
+            curr = curr.data;
+        }
+        if (curr.data && typeof curr.data === 'object' && (curr.data.features || curr.data.type)) {
+            curr = curr.data;
+        }
+        if (curr.datos && typeof curr.datos === 'object' && (curr.datos.features || curr.datos.type)) {
+            curr = curr.datos;
+        }
+        if (curr && Array.isArray(curr.features)) {
+            return curr;
+        }
+        if (Array.isArray(curr)) {
+            return { type: 'FeatureCollection', features: curr };
+        }
+        return { type: 'FeatureCollection', features: [] };
+    }
+
+    const ENDPOINT_MAP = {
+        'sgr_parroquias_guayaquil.geojson': 'capas/parroquias',
+        'sgr_sectores_celestes.geojson': 'capas/sectores',
+        'sgr_zonas_inundables.geojson': 'capas/zonas-inundables',
+        'sgr_zonas_seguras.geojson': 'capas/zonas-seguras',
+        'sgr_vias_inundables.geojson': 'capas/vias-inundables',
+        'sgr_vias_vulnerables_marea_alta.geojson': 'capas/vias-vulnerables-marea',
+        'sgr_eventos.json': 'eventos/sgr',
+        'guayas_osm.geojson': 'capas/guayas-osm'
+    };
+
+    const getEndpointUrl = (name) => {
+        const route = ENDPOINT_MAP[name];
+        if (route) return CONFIG.API_BASE + route;
+        return CONFIG.API_BASE + name;
+    };
+
+    const loadGeoJSONSource = (sourceId, filename) => {
+        const url = getEndpointUrl(filename);
+        fetch(url)
+            .then(r => r.json())
+            .then(d => {
+                const geojson = extractGeoJSON(d);
+                if (filename.includes('parroquias')) {
+                    window.parroquiasGeoJSON = geojson;
+                } else if (filename.includes('celestes')) {
+                    window.sectoresGeoJSON = geojson;
+                } else if (filename.includes('eventos')) {
+                    window.sgrEventsData = geojson.features || [];
+                }
+                if (map && map.getSource(sourceId)) {
+                    map.getSource(sourceId).setData(geojson);
+                }
+            })
+            .catch(e => console.error(`Error cargando capa ${filename}:`, e));
+    };
 
     map.on('load', () => {
         // Icono de Pin
@@ -135,28 +193,31 @@ export function initMap() {
         // Capas Locales GeoJSON
         map.addSource('sgr-events', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
         map.addLayer({ id: 'sgr-events-layer', type: 'circle', source: 'sgr-events', paint: { 'circle-radius': 6, 'circle-color': '#f97316', 'circle-stroke-width': 2, 'circle-stroke-color': '#ffffff' }, layout: { 'visibility': 'visible' } });
+        loadGeoJSONSource('sgr-events', 'sgr_eventos.json');
 
-        fetch(CONFIG.DATA_BASE + 'sgr_eventos.json')
-            .then(r => r.json())
-            .then(d => {
-                const geojson = d.data ? d.data : d;
-                if (map.getSource('sgr-events')) map.getSource('sgr-events').setData(geojson);
-            })
-            .catch(e => console.error("Error cargando sgr_eventos:", e));
-
-        map.addSource('sgr-celestes', { type: 'geojson', data: CONFIG.DATA_BASE + 'sgr_sectores_celestes.geojson' });
+        map.addSource('sgr-celestes', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
         map.addLayer({ id: 'sgr-celestes-layer', type: 'fill', source: 'sgr-celestes', paint: { 'fill-color': '#38bdf8', 'fill-opacity': 0.3 }, layout: { 'visibility': 'visible' } });
         map.addLayer({ id: 'sgr-celestes-outline', type: 'line', source: 'sgr-celestes', paint: { 'line-color': '#0284c7', 'line-width': 2 }, layout: { 'visibility': 'visible' } });
         map.addLayer({ id: 'sgr-celestes-labels', type: 'symbol', source: 'sgr-celestes', layout: { 'text-field': ['get', 'AGA'], 'text-size': 12, 'visibility': 'visible' }, paint: { 'text-color': '#0f172a', 'text-halo-color': '#ffffff', 'text-halo-width': 2 } });
+        loadGeoJSONSource('sgr-celestes', 'sgr_sectores_celestes.geojson');
 
-        map.addSource('sgr-zonasegura', { type: 'geojson', data: CONFIG.DATA_BASE + 'sgr_zonas_seguras.geojson' });
+        map.addSource('sgr-parroquias', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+        map.addLayer({ id: 'sgr-parroquias-layer', type: 'fill', source: 'sgr-parroquias', paint: { 'fill-color': '#818cf8', 'fill-opacity': 0.25 }, layout: { 'visibility': 'visible' } });
+        map.addLayer({ id: 'sgr-parroquias-outline', type: 'line', source: 'sgr-parroquias', paint: { 'line-color': '#6366f1', 'line-width': 1.8, 'line-dasharray': [2, 2] }, layout: { 'visibility': 'visible' } });
+        map.addLayer({ id: 'sgr-parroquias-labels', type: 'symbol', source: 'sgr-parroquias', layout: { 'text-field': ['get', 'name'], 'text-size': 11, 'visibility': 'visible' }, paint: { 'text-color': '#ffffff', 'text-halo-color': '#0f172a', 'text-halo-width': 2 } });
+        loadGeoJSONSource('sgr-parroquias', 'sgr_parroquias_guayaquil.geojson');
+
+        map.addSource('sgr-zonasegura', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
         map.addLayer({ id: 'sgr-zonasegura-layer', type: 'circle', source: 'sgr-zonasegura', paint: { 'circle-color': '#22c55e', 'circle-radius': 6, 'circle-stroke-width': 2, 'circle-stroke-color': '#ffffff' }, layout: { 'visibility': 'visible' } });
+        loadGeoJSONSource('sgr-zonasegura', 'sgr_zonas_seguras.geojson');
 
-        map.addSource('sgr-zonasinundables', { type: 'geojson', data: CONFIG.DATA_BASE + 'sgr_zonas_inundables.geojson' });
+        map.addSource('sgr-zonasinundables', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
         map.addLayer({ id: 'sgr-zonasinundables-layer', type: 'fill', source: 'sgr-zonasinundables', paint: { 'fill-color': '#40e0d0', 'fill-opacity': 0.5 }, layout: { 'visibility': 'visible' } });
+        loadGeoJSONSource('sgr-zonasinundables', 'sgr_zonas_inundables.geojson');
 
-        map.addSource('sgr-viasinundables', { type: 'geojson', data: CONFIG.DATA_BASE + 'sgr_vias_inundables.geojson' });
+        map.addSource('sgr-viasinundables', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
         map.addLayer({ id: 'sgr-viasinundables-layer', type: 'line', source: 'sgr-viasinundables', paint: { 'line-color': '#ef4444', 'line-width': 3 }, layout: { 'visibility': 'visible' } });
+        loadGeoJSONSource('sgr-viasinundables', 'sgr_vias_inundables.geojson');
 
         // Capa Dinámica de Zonas de Riesgo (Polígonos generados con Turf.js)
         map.addSource('zonas-riesgo', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -196,7 +257,7 @@ export function initMap() {
         new maplibregl.Marker({ color: '#fbbf24' }).setLngLat([-79.886, -2.196]).setPopup(new maplibregl.Popup().setHTML("<b>Guayaquil</b>")).addTo(map);
 
         // Boyas Oceánicas (NDBC)
-        map.addSource('buoys-source', { type: 'geojson', data: CONFIG.DATA_BASE + 'ndbc_buoys.json' });
+        map.addSource('buoys-source', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
         map.addLayer({
             id: 'buoys-layer',
             type: 'symbol',
@@ -204,6 +265,7 @@ export function initMap() {
             layout: { 'icon-image': 'pin-icon', 'icon-anchor': 'bottom', 'icon-offset': [0, 0], 'text-field': '{name}\n{water_temp_c}°C', 'text-size': 12, 'text-offset': [0, 0.5], 'text-anchor': 'top', 'visibility': 'none' },
             paint: { 'text-color': '#ffffff', 'text-halo-color': '#000000', 'text-halo-width': 1 }
         });
+        loadGeoJSONSource('buoys-source', 'ndbc_buoys.json');
 
         // Profundidad Subsuperficial (Ondas Kelvin simuladas)
         map.addSource('depth-source', {

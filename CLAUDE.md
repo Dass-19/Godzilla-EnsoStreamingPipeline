@@ -111,7 +111,7 @@ API lo importa para el endpoint de simulación. El término clave es
 Ojo con el componente de embalse: la fuente publica **cota en msnm**, no caudal, y se normaliza contra
 el rango de operación (dividir por el umbral de alerta saturaba en 1.0 para cualquier cota real).
 
-[data/geo_ref/zonas_guayaquil.csv](backend/spark/data/geo_ref/zonas_guayaquil.csv) (10 zonas) es la
+[data/geo_ref/zonas_guayaquil.csv](backend/spark/data/geo_ref/zonas_guayaquil.csv) (22+ zonas y parroquias) es la
 tabla estática de zonas. La leen Spark y la API (dos endpoints); cambiar sus columnas rompe los tres.
 
 ### API (`backend/api/`)
@@ -120,15 +120,16 @@ pura-Python. Le da dos garantías a `app.py`: traduce "la ruta no existe" a `Fil
 resto sigue siendo `HdfsError` → 503, no 404) y acota cuántas particiones de fecha lee.
 
 `SPARK_APP_DIR` (default `/app/spark`, que es donde el compose ubica `backend/spark`) es lo que permite
-importar `risk_index` y ubicar el CSV. `/api/escenario/simular` recalcula el índice en memoria sin
-tocar HDFS, para que el slider del dashboard responda sin esperar el micro-batch.
-`/api/clima/punto` es un proxy de OpenWeatherMap: **la clave vive en el servidor**, el frontend no la
-ve. `/data/{filename}` es capa legacy con allowlist explícita.
+importar `risk_index` y ubicar el CSV. Cada fuente de datos y capa geográfica en HDFS expone su propio
+endpoint REST normalizado (`/api/eventos/sgr`, `/api/capas/parroquias`, `/api/capas/sectores`, `/api/clima/inamhi`, etc.),
+retornando respuestas estandarizadas bajo el modelo `RespuestaAPI`. `/api/escenario/simular` recalcula el índice en memoria sin
+tocar HDFS. `/api/clima/punto` es un proxy de OpenWeatherMap.
 
 ### Frontend (`frontend/`)
 HTML/CSS/JS sin build step ni gestor de paquetes: MapLibre GL, Chart.js y Turf por CDN, con versión
 exacta y `integrity` (SRI). Se sirve como estático desde la propia API en `/dashboard`, y el objeto
-`CONFIG` en [config.js](frontend/js/config.js) usa rutas **relativas** (`/api/`, `/data/`).
-Datos de terceros se insertan con `textContent`/`createElement`, nunca interpolados en `innerHTML`.
-`index.html` cachebustea con querystring (`js/main.js?v=10`, `styles.css?v=14`) — **incrementar ese número
+`CONFIG` en [config.js](frontend/js/config.js) usa rutas **relativas** (`/api/`).
+Utiliza Turf.js (`turf.booleanPointInPolygon`) para filtrar geométricamente los eventos de lluvia SGR
+dentro del polígono de la parroquia activa.
+`index.html` cachebustea con querystring (`js/main.js?v=15`, `styles.css?v=19`) — **incrementar ese número
 al editar** o el navegador servirá la versión vieja.

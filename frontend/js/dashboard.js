@@ -324,9 +324,17 @@ export async function updateSgrEventsData() {
         if (!listContainer) return;
 
         let features = [];
-        if (json.features) features = json.features;
-        else if (json.data) features = json.data;
+        if (json.features) {
+            features = json.features;
+        } else if (json.data && json.data.features) {
+            features = json.data.features;
+        } else if (json.data && json.data.data && json.data.data.features) {
+            features = json.data.data.features;
+        } else if (Array.isArray(json.data)) {
+            features = json.data;
+        }
 
+        window.sgrEventsData = features;
         setText('val-sgr-count', `${features.length}`);
 
         let totalAfectados = 0;

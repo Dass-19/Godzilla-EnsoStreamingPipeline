@@ -851,80 +851,220 @@ def clima_tile(
 
 
 # ---------------------------------------------------------------------------
-# Capa de compatibilidad para el frontend original
+# Endpoints Normalizados REST para Fuentes HDFS
 # ---------------------------------------------------------------------------
 
-ARCHIVOS_A_FUENTE = {
-    "gee_data.json": "gee",
-    "noaa_data.json": "noaa",
-    "open_meteo_data.json": "open_meteo",
-    "nasa_power_data.json": "nasa_power",
-    "enso_indexes.json": "enso_indexes",
-    "inocar_data.json": "inocar_mareas",
-    "inamhi_data.json": "inamhi",
-    "openweathermap_data.json": "openweathermap",
-    "sgr_eventos.json": "sgr_eventos",
-    "guayas_osm.geojson": "guayas_osm",
-    "ndbc_buoys.json": "ndbc_buoys",
-    "caudal_geoglows.json": "caudal_geoglows",
-}
+def _leer_capa_seguraep(filename: str, descripcion_error: str):
+    hdfs_path = f"{HDFS_BASE}/raw/seguraep/{filename}"
+    try:
+        with _client().read(hdfs_path) as reader:
+            obj = json.load(reader)
+            return _respuesta_exitosa(obj, fuente=hdfs_path)
+    except HdfsError as error:
+        raise _sin_datos(descripcion_error) from None
 
-CAPAS_SEGURAEP = {
-    "sgr_zonas_inundables.geojson",
-    "sgr_zonas_seguras.geojson",
-    "sgr_vias_inundables.geojson",
-    "sgr_vias_vulnerables_marea_alta.geojson",
-    "sgr_sectores_celestes.geojson",
-}
+
+def _leer_telemetria_raw(fuente: str, descripcion_error: str):
+    reg, ruta = _ultimo_registro_raw(fuente, descripcion_error)
+    try:
+        obj = json.loads(reg.get("json_str", "{}"))
+    except (ValueError, TypeError) as error:
+        raise HTTPException(status_code=500, detail=f"Dato de {fuente} corrupto en HDFS") from error
+
+    if isinstance(obj, dict) and "data" in obj:
+        if isinstance(obj["data"], dict) and "features" in obj["data"]:
+            return _respuesta_exitosa(obj["data"], fuente=ruta)
+        return _respuesta_exitosa(obj["data"], fuente=ruta)
+    return _respuesta_exitosa(obj, fuente=ruta)
 
 
 @app.get(
-    "/data/{filename}",
-    tags=["compatibilidad"],
-    summary="Capa de compatibilidad de archivos legacy",
-    description="Endpoint retrocompatible para servir capas GeoJSON y payloads JSON consumidos por componentes legacy.",
-    response_description="Objeto JSON o GeoJSON extraído de HDFS.",
-    responses={
-        404: {"model": RespuestaAPI[None], "description": "Archivo o capa no registrada o ausente en HDFS."},
-        500: {"model": RespuestaAPI[None], "description": "Estructura JSON corrupta en HDFS."},
-        503: {"model": RespuestaAPI[None], "description": "Servidor HDFS no disponible."},
-    },
+    "/api/clima/gee",
+    response_model=RespuestaAPI[dict[str, Any]],
+    tags=["hidrologia_clima"],
+    summary="Datos satelitales Google Earth Engine (CHIRPS / GPM)",
+    description="Obtiene la última lectura de precipitación satelital calculada desde GEE.",
+    response_description="Objeto JSON con datos satelitales envuelto en RespuestaAPI.",
 )
-def get_data_file(
-    filename: str = Path(..., description="Nombre del archivo JSON o GeoJSON solicitado", example="guayas_osm.geojson")
-):
-    if filename in ARCHIVOS_A_FUENTE:
-        fuente = ARCHIVOS_A_FUENTE[filename]
-        ruta_hdfs = f"{HDFS_BASE}/raw/{fuente}"
-        try:
-            df = read_latest_partition_parquet(_client(), ruta_hdfs)
-        except FileNotFoundError:
-            raise _sin_datos(f"Aún no hay datos de {fuente}") from None
-        except HdfsError as error:
-            raise _hdfs_caido(error) from error
+def clima_gee():
+    return _leer_telemetria_raw("gee", "Sin datos satelitales GEE")
 
-        if df.empty:
-            raise _sin_datos(f"Aún no hay datos de {fuente}") from None
 
-        ultimo = df.sort_values("kafka_timestamp").iloc[-1]
-        try:
-            obj = json.loads(ultimo["json_str"])
-        except (ValueError, TypeError) as error:
-            logger.warning("json_str inválido en raw/%s: %s", fuente, error)
-            raise HTTPException(status_code=500, detail="Dato corrupto en HDFS") from error
+@app.get(
+    "/api/clima/open-meteo",
+    response_model=RespuestaAPI[dict[str, Any]],
+    tags=["hidrologia_clima"],
+    summary="Pronóstico climático horario (Open-Meteo)",
+    description="Retorna la última predicción horaria de precipitación y humedad de Open-Meteo.",
+    response_description="Pronóstico horario envuelto en RespuestaAPI.",
+)
+def clima_open_meteo():
+    return _leer_telemetria_raw("open_meteo", "Sin datos de Open-Meteo")
 
-        if filename.endswith(".geojson") and isinstance(obj, dict) and "data" in obj:
-            return _respuesta_exitosa(obj["data"], fuente=ruta_hdfs)
-        return _respuesta_exitosa(obj, fuente=ruta_hdfs)
 
-    if filename in CAPAS_SEGURAEP:
-        hdfs_path = f"{HDFS_BASE}/raw/seguraep/{filename}"
-        try:
-            with _client().read(hdfs_path) as reader:
-                obj = json.load(reader)
-                return _respuesta_exitosa(obj, fuente=hdfs_path)
-        except HdfsError as error:
-            logger.info("capa SeguraEP no disponible (%s): %s", hdfs_path, error)
-            raise _sin_datos(f"Capa {filename} todavía no cargada en HDFS") from None
+@app.get(
+    "/api/clima/nasa-power",
+    response_model=RespuestaAPI[dict[str, Any]],
+    tags=["hidrologia_clima"],
+    summary="Parámetros agrometeorológicos (NASA POWER)",
+    description="Obtiene radiación solar, humedad y viento desde la API de NASA POWER.",
+    response_description="Datos meteorológicos NASA POWER envueltos en RespuestaAPI.",
+)
+def clima_nasa_power():
+    return _leer_telemetria_raw("nasa_power", "Sin datos de NASA POWER")
 
-    raise _sin_datos("Archivo no reconocido") from None
+
+@app.get(
+    "/api/enso/indices",
+    response_model=RespuestaAPI[dict[str, Any]],
+    tags=["enso"],
+    summary="Índices ENSO macro (Niño 1+2, ONI, SOI)",
+    description="Obtiene la serie temporal de índices macroclimáticos de El Niño Oscilación del Sur.",
+    response_description="Índices macroclimáticos envueltos en RespuestaAPI.",
+)
+def enso_indices():
+    return _leer_telemetria_raw("enso_indexes", "Sin índices macro ENSO")
+
+
+@app.get(
+    "/api/clima/inamhi",
+    response_model=RespuestaAPI[dict[str, Any]],
+    tags=["hidrologia_clima"],
+    summary="Boletín de pronóstico oficial (INAMHI)",
+    description="Retorna las alertas y temperaturas estimadas por INAMHI para Guayaquil.",
+    response_description="Boletín INAMHI envuelto en RespuestaAPI.",
+)
+def clima_inamhi():
+    return _leer_telemetria_raw("inamhi", "Sin datos de pronóstico INAMHI")
+
+
+@app.get(
+    "/api/clima/openweathermap",
+    response_model=RespuestaAPI[dict[str, Any]],
+    tags=["hidrologia_clima"],
+    summary="Condiciones meteorológicas en tiempo real (OpenWeatherMap)",
+    description="Obtiene temperatura actual, humedad y nubosidad para Guayaquil.",
+    response_description="Clima actual envuelto en RespuestaAPI.",
+)
+def clima_openweathermap():
+    return _leer_telemetria_raw("openweathermap", "Sin datos de OpenWeatherMap")
+
+
+@app.get(
+    "/api/eventos/sgr",
+    response_model=RespuestaAPI[dict[str, Any]],
+    tags=["eventos"],
+    summary="Eventos de lluvia e inundaciones (SGR)",
+    description="Obtiene la colección GeoJSON de eventos de lluvia e incidentes reportados por la SGR.",
+    response_description="GeoJSON FeatureCollection de eventos envuelto en RespuestaAPI.",
+)
+def eventos_sgr():
+    return _leer_telemetria_raw("sgr_eventos", "Sin eventos SGR")
+
+
+@app.get(
+    "/api/boyas/ndbc",
+    response_model=RespuestaAPI[dict[str, Any]],
+    tags=["hidrologia_clima"],
+    summary="Telemetría de boyas oceánicas (NOAA NDBC)",
+    description="Obtiene observaciones mar adentro de boyas meteorológicas del Pacífico Este.",
+    response_description="Datos de boyas envueltos en RespuestaAPI.",
+)
+def boyas_ndbc():
+    return _leer_telemetria_raw("ndbc_buoys", "Sin datos de boyas NDBC")
+
+
+@app.get(
+    "/api/hidrologia/geoglows",
+    response_model=RespuestaAPI[dict[str, Any]],
+    tags=["hidrologia_clima"],
+    summary="Caudales de la Cuenca del Guayas (GEOGLOWS ECMWF)",
+    description="Obtiene la estimación de caudal simulado del Río Guayas y tributarios principales.",
+    response_description="Caudal de ríos envuelto en RespuestaAPI.",
+)
+def hidrologia_geoglows():
+    return _leer_telemetria_raw("caudal_geoglows", "Sin caudal GEOGLOWS")
+
+
+@app.get(
+    "/api/capas/guayas-osm",
+    response_model=RespuestaAPI[dict[str, Any]],
+    tags=["capas_geograficas"],
+    summary="Polígono del Cantón Guayaquil (OpenStreetMap)",
+    description="Retorna el contorno del Cantón Guayaquil derivado de OpenStreetMap.",
+    response_description="GeoJSON del cantón Guayaquil envuelto en RespuestaAPI.",
+)
+def capas_guayas_osm():
+    return _leer_telemetria_raw("guayas_osm", "Sin mapa OSM del Cantón Guayaquil")
+
+
+@app.get(
+    "/api/capas/parroquias",
+    response_model=RespuestaAPI[dict[str, Any]],
+    tags=["capas_geograficas"],
+    summary="Parroquias Cantonales de Guayaquil (16 Urbanas + 5 Rurales)",
+    description="Retorna el GeoJSON oficial unificado con los límites de las parroquias urbanas y rurales de Guayaquil.",
+    response_description="GeoJSON FeatureCollection de parroquias envuelto en RespuestaAPI.",
+)
+def capas_parroquias():
+    return _leer_capa_seguraep("sgr_parroquias_guayaquil.geojson", "Sin capa de parroquias de Guayaquil")
+
+
+@app.get(
+    "/api/capas/sectores",
+    response_model=RespuestaAPI[dict[str, Any]],
+    tags=["capas_geograficas"],
+    summary="Distritos Operativos Segura EP (A01-A18)",
+    description="Retorna el GeoJSON de sectores y distritos operativos de respuesta a emergencias de Segura EP.",
+    response_description="GeoJSON FeatureCollection de sectores celestes envuelto en RespuestaAPI.",
+)
+def capas_sectores():
+    return _leer_capa_seguraep("sgr_sectores_celestes.geojson", "Sin capa de sectores Segura EP")
+
+
+@app.get(
+    "/api/capas/zonas-inundables",
+    response_model=RespuestaAPI[dict[str, Any]],
+    tags=["capas_geograficas"],
+    summary="Zonas de Riesgo Histórico de Inundación (SGR)",
+    description="Retorna polígonos de zonas históricamente vulnerables a anegamientos por precipitaciones.",
+    response_description="GeoJSON FeatureCollection de zonas inundables envuelto en RespuestaAPI.",
+)
+def capas_zonas_inundables():
+    return _leer_capa_seguraep("sgr_zonas_inundables.geojson", "Sin zonas inundables")
+
+
+@app.get(
+    "/api/capas/zonas-seguras",
+    response_model=RespuestaAPI[dict[str, Any]],
+    tags=["capas_geograficas"],
+    summary="Zonas Seguras y Albergues Temporales",
+    description="Retorna los puntos de refugio y zonas seguras coordinadas por Gestión de Riesgos.",
+    response_description="GeoJSON FeatureCollection de zonas seguras envuelto en RespuestaAPI.",
+)
+def capas_zonas_seguras():
+    return _leer_capa_seguraep("sgr_zonas_seguras.geojson", "Sin zonas seguras")
+
+
+@app.get(
+    "/api/capas/vias-inundables",
+    response_model=RespuestaAPI[dict[str, Any]],
+    tags=["capas_geograficas"],
+    summary="Vías Inundables por Lluvia",
+    description="Retorna tramos viales urbanos propensos a acumulación de agua durante tormentas.",
+    response_description="GeoJSON FeatureCollection de vías inundables envuelto en RespuestaAPI.",
+)
+def capas_vias_inundables():
+    return _leer_capa_seguraep("sgr_vias_inundables.geojson", "Sin vías inundables")
+
+
+@app.get(
+    "/api/capas/vias-vulnerables-marea",
+    response_model=RespuestaAPI[dict[str, Any]],
+    tags=["capas_geograficas"],
+    summary="Vías Vulnerables a Marea Alta",
+    description="Retorna arterias viales afectadas cuando la marea del Río Guayas excede cotas críticas.",
+    response_description="GeoJSON FeatureCollection de vías vulnerables por marea envuelto en RespuestaAPI.",
+)
+def capas_vias_vulnerables_marea():
+    return _leer_capa_seguraep("sgr_vias_vulnerables_marea_alta.geojson", "Sin vías vulnerables por marea")

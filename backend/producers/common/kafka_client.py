@@ -20,7 +20,7 @@ import logging
 import os
 import time
 from collections.abc import Callable, Iterable
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
@@ -29,24 +29,19 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("enso.producer")
 
-# El catálogo de estaciones de INAMHI y el GeoJSON de OSM superan el límite
-# por defecto de 1 MB por mensaje: con gzip y este tope dejan de descartarse.
-MAX_REQUEST_SIZE_BYTES = int(os.environ.get("KAFKA_MAX_REQUEST_SIZE", 10 * 1024 * 1024))
+KAFKA_BOOTSTRAP = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+MAX_REQUEST_SIZE_BYTES = 10 * 1024 * 1024
 
 
-def build_producer(bootstrap_servers: str = None) -> KafkaProducer:
-    if bootstrap_servers is None:
-        bootstrap_servers = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
-
+def build_producer(bootstrap_servers: str = KAFKA_BOOTSTRAP) -> KafkaProducer:
     while True:
         try:
             return KafkaProducer(
                 bootstrap_servers=bootstrap_servers,
-                value_serializer=lambda v: json.dumps(v, default=str).encode("utf-8"),
-                key_serializer=lambda k: k.encode("utf-8") if k is not None else None,
-                acks="all",
+                value_serializer=lambda v: json.dumps(v).encode("utf-8"),
+                key_serializer=lambda k: k.encode("utf-8") if k else None,
                 retries=5,
                 linger_ms=200,
                 compression_type="gzip",
@@ -64,7 +59,7 @@ def send_record(
         key: str | None = None
         ) -> None:
     record = dict(record)
-    record.setdefault("ingested_at", datetime.now(UTC).isoformat())
+    record.setdefault("ingested_at", datetime.now(timezone.utc).isoformat())
     future = producer.send(topic, key=key, value=record)
     try:
         metadata = future.get(timeout=10)

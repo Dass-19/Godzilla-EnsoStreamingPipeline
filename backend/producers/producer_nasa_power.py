@@ -6,6 +6,7 @@ Variables: Temperatura, Precipitación, Vientos, Presión y Radiación Solar en 
 
 
 import datetime
+from datetime import timezone
 import os
 
 import requests
@@ -25,7 +26,7 @@ VENTANA_DIAS = int(os.environ.get("VENTANA_DIAS_CLIMA", 15))
 
 
 def _ventana_fechas():
-    hoy = datetime.datetime.now(datetime.UTC).date()
+    hoy = datetime.datetime.now(timezone.utc).date()
     desde = hoy - datetime.timedelta(days=VENTANA_DIAS)
     return desde.strftime("%Y%m%d"), hoy.strftime("%Y%m%d")
 

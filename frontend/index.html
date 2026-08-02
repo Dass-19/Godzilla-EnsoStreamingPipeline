@@ -24,7 +24,7 @@
         integrity="sha384-NrKB+u6Ts6AtkIhwPixiKTzgSKNblyhlk0Sohlgar9UHUBzai/sgnNNWWd291xqt"
         crossorigin="anonymous"></script>
 
-    <link rel="stylesheet" href="styles.css?v=14">
+    <link rel="stylesheet" href="styles.css?v=19">
 </head>
 
 <body>
@@ -76,6 +76,8 @@
 
             <label class="menu-label"><input type="checkbox" id="toggle-sgr-events" checked> 🚨 Eventos Lluvias
                 (SGR)</label>
+            <label class="menu-label"><input type="checkbox" id="toggle-sgr-parroquias" checked> 🏛️ Parroquias Cantonales
+                (INEC/GAD)</label>
             <label class="menu-label"><input type="checkbox" id="toggle-sgr-celestes" checked> 🟦 Sectores
                 (SeguraEP)</label>
             <label class="menu-label"><input type="checkbox" id="toggle-seguraep-zonasegura" checked> 🟩 Zonas Seguras
@@ -92,17 +94,32 @@
     <div id="view-toggle-pill" class="view-toggle-container">
         <button id="btn-regional" class="view-toggle-btn active">🌍 Vista Regional</button>
         <button id="btn-local" class="view-toggle-btn">🏙️ Vista Local</button>
-        <select id="select-parroquia" class="parroquia-select hidden" title="Enfocar Parroquia / Barrio">
+        <select id="select-parroquia" class="parroquia-select hidden" title="Enfocar Parroquia / Sector">
             <option value="">-- Enfocar Parroquia / Sector --</option>
-            <option value="TARQUI_URDESA">📍 Tarqui - Urdesa / Ceibos</option>
-            <option value="TARQUI_SAUCES">📍 Tarqui - Sauces / Alborada</option>
-            <option value="FEBRES_CORDERO">📍 Febres Cordero - Suburbio</option>
-            <option value="XIMENA_GUASMO">📍 Ximena - Guasmo / Sur</option>
-            <option value="PASCUALES">📍 Pascuales - Mucho Lote</option>
-            <option value="CHONGON">📍 Chongón - Vía a la Costa</option>
-            <option value="CENTRO">📍 Centro - Puerto Santa Ana</option>
-            <option value="SAMBORONDON">📍 Samborondón (Cuenca)</option>
-            <option value="DAULE">📍 Daule (Cuenca Alta)</option>
+            <optgroup label="🏙️ Parroquias Urbanas">
+                <option value="TARQUI">📍 Tarqui (Urdesa / Sauces / Alborada)</option>
+                <option value="FEBRES_CORDERO">📍 Febres Cordero (Suburbio / Batallón)</option>
+                <option value="XIMENA">📍 Ximena (Guasmo / Pradera / Trinitaria)</option>
+                <option value="PASCUALES">📍 Pascuales (Mucho Lote / Orquídeas)</option>
+                <option value="CHONGON">📍 Chongón (Vía a la Costa)</option>
+                <option value="CENTRO">📍 Centro (9 de Octubre / Puerto Santa Ana)</option>
+                <option value="URDANETA">📍 Urdaneta</option>
+                <option value="LETAMENDI">📍 Letamendi</option>
+                <option value="GARCIA_MORENO">📍 García Moreno</option>
+                <option value="CARBO">📍 Carbo (Concepción)</option>
+                <option value="ROCAFUERTE">📍 Rocafuerte</option>
+            </optgroup>
+            <optgroup label="🌾 Parroquias Rurales">
+                <option value="POSORJA">📍 Posorja (Puerto Pesquero)</option>
+                <option value="PUNA">📍 Isla Puná</option>
+                <option value="TENGUEL">📍 Tenguel</option>
+                <option value="EL_MORRO">📍 El Morro</option>
+                <option value="PROGRESO">📍 Progreso (Juan Gómez Rendón)</option>
+            </optgroup>
+            <optgroup label="🌐 Cuencas Adyacentes">
+                <option value="SAMBORONDON">📍 Samborondón (Cuenca)</option>
+                <option value="DAULE">📍 Daule (Cuenca Alta)</option>
+            </optgroup>
         </select>
     </div>
 
@@ -367,17 +384,7 @@
                 </div>
             </section>
 
-            <!-- Alertas e Incidentes SGR Card -->
-            <section class="card" id="sgr-incidencias-card">
-                <h3>🚨 Incidentes por Lluvia (SGR)</h3>
-                <div style="display: flex; justify-content: space-between; margin-top: 8px; margin-bottom: 8px; font-size: 11px;">
-                    <div><span class="label">EVENTOS GUAYAS:</span> <b id="val-sgr-count" style="color: #ea580c;">--</b></div>
-                    <div><span class="label">AFECTADOS:</span> <b id="val-sgr-afectados" style="color: #ef4444;">-- pers.</b></div>
-                </div>
-                <div id="sgr-incidencias-list" style="max-height: 120px; overflow-y: auto; font-size: 11px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 6px;">
-                    <div style="text-align: center; color: #94a3b8; padding: 10px;">Cargando incidentes...</div>
-                </div>
-            </section>
+
 
 
             <!-- Panel de Simulación (Escenario Combinado) -->
@@ -417,6 +424,33 @@
         </div> <!-- Fin de local-cards -->
     </div> <!-- Fin de dashboard-sidebar -->
 
+    <!-- Panel Flotante Inferior Derecho: Eventos de Lluvia Históricos por Parroquia -->
+    <div id="parroquia-events-panel" class="dashboard-panel floating-bottom-right hidden">
+        <div class="panel-header-events">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:18px;">🌧️</span>
+                <div>
+                    <h4 id="panel-parroquia-title" style="margin:0; font-size:14px; color:#f8fafc; font-weight:700;">Eventos de Lluvia Históricos</h4>
+                    <span id="panel-parroquia-subtitle" style="font-size:11px; color:#94a3b8;">Selecciona una parroquia para consultar</span>
+                </div>
+            </div>
+            <button id="btn-close-events-panel" class="btn-icon" style="background:transparent; border:none; color:#94a3b8; font-size:18px; cursor:pointer;">&times;</button>
+        </div>
+        <div class="panel-stats-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:10px 0;">
+            <div class="stat-box" style="background:rgba(30,41,59,0.7); padding:8px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); text-align:center;">
+                <span style="font-size:10px; color:#94a3b8; display:block;">INCIDENTES REGISTRADOS</span>
+                <strong id="panel-event-count" style="font-size:16px; color:#f97316;">0</strong>
+            </div>
+            <div class="stat-box" style="background:rgba(30,41,59,0.7); padding:8px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); text-align:center;">
+                <span style="font-size:10px; color:#94a3b8; display:block;">PERSONAS AFECTADAS</span>
+                <strong id="panel-affected-count" style="font-size:16px; color:#ef4444;">0</strong>
+            </div>
+        </div>
+        <div id="panel-events-list" class="events-scroll-container">
+            <div class="empty-state" style="color:#64748b; font-size:12px; text-align:center; padding:15px 0;">Sin eventos registrados para este sector.</div>
+        </div>
+    </div>
+
     <!-- Modal para Gráficos Históricos (Mejora 2) -->
     <div id="chart-modal" class="modal hidden">
         <div class="modal-content">
@@ -439,7 +473,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"
         integrity="sha384-82q0nm29xZzIo5BMtDYnh2/NxeO6FoaK1S/0nF84w3cEsqbBfun3JdMyDVYWfVY5"
         crossorigin="anonymous"></script>
-    <script type="module" src="js/main.js?v=10"></script>
+    <script type="module" src="js/main.js?v=15"></script>
 </body>
 
 </html>

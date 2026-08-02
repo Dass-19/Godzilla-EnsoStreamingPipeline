@@ -43,16 +43,62 @@ LAYERS = [
     {
       "title": "sgr_sectores_celestes",
       "url": "https://services7.arcgis.com/NWWHhu45fOJtCgG3/arcgis/rest/services/AGA_FINAL/FeatureServer/0"
+      },
+    {
+      "title": "sgr_parroquias_guayaquil",
+      "url_urbanas": "https://geoportalcat.guayaquil.gob.ec/arcgis/rest/services/Geoportal_Actualizado/GEOPORTAL_ACTUALIZADO/MapServer/9",
+      "url_rurales": "https://services7.arcgis.com/iFGeGXTAJXnjq0YN/ArcGIS/rest/services/Parroquias_del_Ecuador/FeatureServer/0"
       }
 ]
 
 
 def download_layer(layer_info, hdfs_client, hdfs_base_path, fmt='geojson'):
     title = layer_info['title']
-    base_url = layer_info['url']
-
     filename = title
 
+    if title == "sgr_parroquias_guayaquil":
+        try:
+            print("[*] Descargando parroquias urbanas y rurales...")
+            # Urbanas
+            u_req = urllib.request.Request(f"{layer_info['url_urbanas']}/query?where=1=1&outFields=*&outSR=4326&f=geojson", headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(u_req) as resp:
+                u_data = json.loads(resp.read().decode('utf-8'))
+            
+            # Rurales
+            r_req = urllib.request.Request(f"{layer_info['url_rurales']}/query?where=DPA_DESCAN='GUAYAQUIL'&outFields=*&outSR=4326&f=geojson", headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(r_req) as resp:
+                r_data = json.loads(resp.read().decode('utf-8'))
+
+            combined_features = []
+            for f in u_data.get('features', []):
+                p = f.get('properties', {})
+                p['name'] = p.get('Nam', p.get('PARROQUIA', 'Parroquia Urbana'))
+                p['tipo'] = 'Urbana'
+                f['properties'] = p
+                combined_features.append(f)
+
+            for f in r_data.get('features', []):
+                p = f.get('properties', {})
+                p['name'] = p.get('DPA_DESPAR', p.get('PARROQUIA', 'Parroquia Rural'))
+                p['tipo'] = 'Rural'
+                f['properties'] = p
+                combined_features.append(f)
+
+            data = {
+                "type": "FeatureCollection",
+                "features": combined_features
+            }
+
+            hdfs_path = f"{hdfs_base_path}/{filename}.{fmt}"
+            content = json.dumps(data).encode('utf-8')
+            hdfs_client.write(hdfs_path, data=content, overwrite=True)
+            print(f"[+] Guardado en HDFS: {hdfs_path} ({len(combined_features)} parroquias)")
+            return
+        except Exception as e:
+            print(f"[-] Error descargando parroquias: {e}")
+            return
+
+    base_url = layer_info['url']
     query_url = f"{base_url}/query?where=1=1&outFields=*&outSR=4326&f={fmt}"
 
     try:

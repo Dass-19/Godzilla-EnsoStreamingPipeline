@@ -23,3 +23,6 @@ claude/
 # Datos temporales
 *.parquet
 .spark-staging/
+
+# Capas de datos estáticas locales / Fallback frontend
+frontend/data/

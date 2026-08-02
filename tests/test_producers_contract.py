@@ -63,7 +63,8 @@ def test_nasa_power_pide_una_ventana_movil_y_no_un_rango_fijo():
     assert inicio < fin
     # La ventana termina hoy, no en una fecha escrita a mano.
     import datetime
-    assert fin == datetime.datetime.now(datetime.UTC).date().strftime("%Y%m%d")
+    from datetime import timezone
+    assert fin == datetime.datetime.now(timezone.utc).date().strftime("%Y%m%d")
 
 
 def test_el_registro_de_nasa_power_cumple_el_contrato():

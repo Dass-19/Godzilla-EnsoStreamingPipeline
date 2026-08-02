@@ -5,6 +5,7 @@
 import { map, getSafeZonesGeoJSON } from './map-manager.js';
 import { fetchClimaPunto, fetchOpenMeteoHist, fetchEvacuationRoute } from '../api/client.js';
 import { createPopupChart, showHistoryChart } from '../components/charts.js';
+import { updateParroquiaEventsPanel } from '../ui/controls.js';
 
 let currentPopup = null;
 
@@ -366,4 +367,24 @@ export function initMapInteractions() {
     });
     map.on('mouseenter', 'zonas-riesgo-layer', () => { map.getCanvas().style.cursor = 'pointer'; });
     map.on('mouseleave', 'zonas-riesgo-layer', () => { map.getCanvas().style.cursor = ''; });
+
+    // Parroquias Cantonales
+    map.on('click', 'sgr-parroquias-layer', (e) => {
+        if (!e.features || e.features.length === 0) return;
+        const p = e.features[0].properties;
+        const pName = p.name || p.Nam || p.DPA_DESPAR || p.PARROQUIA || 'Parroquia';
+        updateParroquiaEventsPanel(pName.toUpperCase().replace(/\s+/g, '_'), pName);
+    });
+    map.on('mouseenter', 'sgr-parroquias-layer', () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', 'sgr-parroquias-layer', () => { map.getCanvas().style.cursor = ''; });
+
+    // Sectores SeguraEP
+    map.on('click', 'sgr-celestes-layer', (e) => {
+        if (!e.features || e.features.length === 0) return;
+        const p = e.features[0].properties;
+        const sName = p.name || p.AGA || p.DISTRITO ? `Distrito ${p.DISTRITO}` : 'Distrito Segura EP';
+        updateParroquiaEventsPanel(sName.toUpperCase().replace(/\s+/g, '_'), sName);
+    });
+    map.on('mouseenter', 'sgr-celestes-layer', () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', 'sgr-celestes-layer', () => { map.getCanvas().style.cursor = ''; });
 }
