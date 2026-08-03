@@ -2,14 +2,14 @@
 // PUNTO DE ENTRADA PRINCIPAL (MAIN ORCHESTRATOR)
 // ==========================================
 
-import { CONFIG } from './config.js?v=16';
-import { initMap, map } from './map/map-manager.js?v=16';
-import { initMapInteractions } from './map/map-popups.js?v=16';
-import { initUIControls } from './ui/controls.js?v=16';
-import { initTimeLapse } from './ui/timelapse.js?v=16';
-import { initSimulationControls } from './ui/simulation.js?v=16';
-import { initGlobalRiskGauge } from './components/charts.js?v=16';
-import { updateDashboard } from './dashboard.js?v=16';
+import { CONFIG } from './config.js?v=18';
+import { initMap, map } from './map/map-manager.js?v=18';
+import { initMapInteractions } from './map/map-popups.js?v=18';
+import { initUIControls } from './ui/controls.js?v=18';
+import { initTimeLapse } from './ui/timelapse.js?v=18';
+import { initSimulationControls } from './ui/simulation.js?v=18';
+import { initGlobalRiskGauge } from './components/charts.js?v=18';
+import { updateDashboard } from './dashboard.js?v=18';
 
 document.addEventListener('DOMContentLoaded', () => {
     // 1. Inicializar mapa

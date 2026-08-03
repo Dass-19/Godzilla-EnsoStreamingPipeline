@@ -102,41 +102,42 @@ TOPICS_A_FUENTES = {
     TOPIC_SST_SEMANAL: FUENTE_SST_SEMANAL,
 }
 
-ESQUEMA_RIESGO = StructType([
-    StructField("zona_id", StringType(), False),
-    StructField("nombre_sector", StringType(), True),
-    StructField("lat_centroide", DoubleType(), True),
-    StructField("lon_centroide", DoubleType(), True),
-    StructField("precip_acumulada_24h_mm", DoubleType(), True),
-    StructField("altura_marea_m", DoubleType(), True),
-    StructField("nivel_embalse_msnm", DoubleType(), True),
-    StructField("origen_precip", StringType(), True),
-    StructField("origen_marea", StringType(), True),
-    StructField("origen_embalse", StringType(), True),
-    StructField("indice_riesgo", DoubleType(), True),
-    StructField("nivel_riesgo", StringType(), True),
-    StructField("datos_completos", BooleanType(), True),
-    StructField("epoch_id", LongType(), True),
-    StructField("precip_pronostico_24h_mm", DoubleType(), True),
-    StructField("marea_observada_m", DoubleType(), True),
-    StructField("caudal_rio_m3s", DoubleType(), True),
-    StructField("saturacion_antecedente_mm", DoubleType(), True),
-    StructField("origen_rio", StringType(), True),
-    StructField("origen_suelo", StringType(), True),
-    StructField("origen_marea_obs", StringType(), True),
-    StructField("n_estaciones_precip", LongType(), True),
-    StructField("poblacion", LongType(), True),
-    StructField("exposicion_norm", DoubleType(), True),
-    StructField("indice_impacto", DoubleType(), True),
-    StructField("anomalia_nino12_c", DoubleType(), True),
-    StructField("origen_enso", StringType(), True),
-])
+ESQUEMA_RIESGO = StructType(
+    [
+        StructField("zona_id", StringType(), False),
+        StructField("nombre_sector", StringType(), True),
+        StructField("lat_centroide", DoubleType(), True),
+        StructField("lon_centroide", DoubleType(), True),
+        StructField("precip_acumulada_24h_mm", DoubleType(), True),
+        StructField("altura_marea_m", DoubleType(), True),
+        StructField("nivel_embalse_msnm", DoubleType(), True),
+        StructField("origen_precip", StringType(), True),
+        StructField("origen_marea", StringType(), True),
+        StructField("origen_embalse", StringType(), True),
+        StructField("indice_riesgo", DoubleType(), True),
+        StructField("nivel_riesgo", StringType(), True),
+        StructField("datos_completos", BooleanType(), True),
+        StructField("epoch_id", LongType(), True),
+        StructField("precip_pronostico_24h_mm", DoubleType(), True),
+        StructField("marea_observada_m", DoubleType(), True),
+        StructField("caudal_rio_m3s", DoubleType(), True),
+        StructField("saturacion_antecedente_mm", DoubleType(), True),
+        StructField("origen_rio", StringType(), True),
+        StructField("origen_suelo", StringType(), True),
+        StructField("origen_marea_obs", StringType(), True),
+        StructField("n_estaciones_precip", LongType(), True),
+        StructField("poblacion", LongType(), True),
+        StructField("exposicion_norm", DoubleType(), True),
+        StructField("indice_impacto", DoubleType(), True),
+        StructField("anomalia_nino12_c", DoubleType(), True),
+        StructField("origen_enso", StringType(), True),
+    ]
+)
 
 
 def build_spark() -> SparkSession:
     return (
-        SparkSession.builder
-        .appName("GodzillaEnsoStreamingPipeline")
+        SparkSession.builder.appName("GodzillaEnsoStreamingPipeline")
         .config("spark.hadoop.dfs.client.use.datanode.hostname", "true")
         .config("spark.sql.shuffle.partitions", "8")
         .getOrCreate()
@@ -145,8 +146,7 @@ def build_spark() -> SparkSession:
 
 def read_topic_raw(spark: SparkSession, topic: str) -> DataFrame:
     raw = (
-        spark.readStream
-        .format("kafka")
+        spark.readStream.format("kafka")
         .option("kafka.bootstrap.servers", KAFKA_BOOTSTRAP)
         .option("subscribe", topic)
         .option("startingOffsets", "earliest")
@@ -161,12 +161,9 @@ def read_topic_raw(spark: SparkSession, topic: str) -> DataFrame:
 
 
 def write_raw_zone(df: DataFrame, nombre_fuente: str):
-    df_con_fecha = (
-        df.drop("topic").withColumn("fecha", F.to_date("kafka_timestamp"))
-    )
+    df_con_fecha = df.drop("topic").withColumn("fecha", F.to_date("kafka_timestamp"))
     return (
-        df_con_fecha.writeStream
-        .format("parquet")
+        df_con_fecha.writeStream.format("parquet")
         .option("path", f"{HDFS_BASE}/raw/{nombre_fuente}")
         .option("checkpointLocation", f"{CKPT_BASE}/raw_{nombre_fuente}")
         .partitionBy("fecha")
@@ -241,11 +238,17 @@ class EstadoFuentes:
             "precip": Lectura.desde(precip_val, RESPALDO_PRECIP_MM, "sin dato de lluvia"),
             "marea": Lectura.desde(self._marea, RESPALDO_MAREA_M, "sin dato de INOCAR"),
             "embalse": Lectura.desde(self._embalse, RESPALDO_EMBALSE_MSNM, "sin dato de CELEC"),
-            "marea_obs": Lectura.desde(self._marea_obs, self._marea if self._marea is not None else RESPALDO_MAREA_M, "sin dato IOC"),
+            "marea_obs": Lectura.desde(
+                self._marea_obs,
+                self._marea if self._marea is not None else RESPALDO_MAREA_M,
+                "sin dato IOC",
+            ),
             "caudal": Lectura.desde(self._caudal, RESPALDO_CAUDAL_M3S, "sin dato GEOGLOWS"),
             "suelo": Lectura.desde(self._saturacion, RESPALDO_SATURACION_MM, "sin dato INAMHI"),
             "pronostico_precip": Lectura.desde(self._pronostico_precip, 0.0, "sin dato Open-Meteo"),
-            "enso": Lectura.desde(self._anomalia_nino12, RESPALDO_ANOMALIA_NINO12_C, "sin dato NOAA CPC"),
+            "enso": Lectura.desde(
+                self._anomalia_nino12, RESPALDO_ANOMALIA_NINO12_C, "sin dato NOAA CPC"
+            ),
             "n_estaciones": n_est,
         }
 
@@ -305,7 +308,9 @@ def calcular_riesgo_batch(spark: SparkSession, zonas: list, estado: EstadoFuente
                 estado.actualizar(fila["topic"], json.loads(fila["json_str"]))
             except (ValueError, TypeError) as error:
                 logger.warning(
-                    "payload no parseable en topic=%s: %s", fila["topic"], error,
+                    "payload no parseable en topic=%s: %s",
+                    fila["topic"],
+                    error,
                 )
 
         filas = []
@@ -339,39 +344,39 @@ def calcular_riesgo_batch(spark: SparkSession, zonas: list, estado: EstadoFuente
                 poblacion=poblacion,
             )
 
-            datos_completos = (
-                precip.es_real and marea.es_real and caudal.es_real and suelo.es_real
-            )
+            datos_completos = precip.es_real and marea.es_real and caudal.es_real and suelo.es_real
 
-            filas.append((
-                zona["zona_id"],
-                zona["nombre_sector"],
-                lat,
-                lon,
-                precip.valor,
-                marea.valor,
-                embalse.valor,
-                precip.origen,
-                marea.origen,
-                embalse.origen,
-                float(resultado["indice_riesgo"]),
-                resultado["nivel_riesgo"],
-                datos_completos,
-                int(epoch_id),
-                pronostico.valor,
-                marea_obs.valor,
-                caudal.valor,
-                suelo.valor,
-                caudal.origen,
-                suelo.origen,
-                marea_obs.origen,
-                int(n_est),
-                poblacion,
-                float(resultado["exposicion_norm"]),
-                float(resultado["indice_impacto"]),
-                enso.valor,
-                enso.origen,
-            ))
+            filas.append(
+                (
+                    zona["zona_id"],
+                    zona["nombre_sector"],
+                    lat,
+                    lon,
+                    precip.valor,
+                    marea.valor,
+                    embalse.valor,
+                    precip.origen,
+                    marea.origen,
+                    embalse.origen,
+                    float(resultado["indice_riesgo"]),
+                    resultado["nivel_riesgo"],
+                    datos_completos,
+                    int(epoch_id),
+                    pronostico.valor,
+                    marea_obs.valor,
+                    caudal.valor,
+                    suelo.valor,
+                    caudal.origen,
+                    suelo.origen,
+                    marea_obs.origen,
+                    int(n_est),
+                    poblacion,
+                    float(resultado["exposicion_norm"]),
+                    float(resultado["indice_impacto"]),
+                    enso.valor,
+                    enso.origen,
+                )
+            )
 
         if not filas:
             return
@@ -383,8 +388,7 @@ def calcular_riesgo_batch(spark: SparkSession, zonas: list, estado: EstadoFuente
         )
 
         (
-            df_riesgo.write
-            .mode("append")
+            df_riesgo.write.mode("append")
             .partitionBy("fecha")
             .parquet(f"{HDFS_BASE}/processed/indice_riesgo")
         )
@@ -396,21 +400,14 @@ def main() -> None:
     spark = build_spark()
     spark.sparkContext.setLogLevel("WARN")
 
-    geo_ref = (
-        spark.read
-        .option("header", "true")
-        .option("inferSchema", "true")
-        .csv(GEO_REF_PATH)
-    )
+    geo_ref = spark.read.option("header", "true").option("inferSchema", "true").csv(GEO_REF_PATH)
     zonas = [fila.asDict() for fila in geo_ref.collect()]
     logger.info("geo_ref cargado: %s zonas", len(zonas))
 
     estado = EstadoFuentes()
     estado.bootstrap(spark)
 
-    df_por_topic = {
-        topic: read_topic_raw(spark, topic) for topic in TOPICS_A_FUENTES
-    }
+    df_por_topic = {topic: read_topic_raw(spark, topic) for topic in TOPICS_A_FUENTES}
 
     for topic, fuente in TOPICS_A_FUENTES.items():
         write_raw_zone(df_por_topic[topic], fuente)
@@ -433,8 +430,7 @@ def main() -> None:
         )
 
     (
-        df_riesgo_entrada.writeStream
-        .foreachBatch(calcular_riesgo_batch(spark, zonas, estado))
+        df_riesgo_entrada.writeStream.foreachBatch(calcular_riesgo_batch(spark, zonas, estado))
         .option("checkpointLocation", f"{CKPT_BASE}/indice_riesgo")
         .trigger(processingTime=TRIGGER_INTERVAL)
         .outputMode("update")

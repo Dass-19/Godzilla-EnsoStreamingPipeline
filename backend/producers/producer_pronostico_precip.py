@@ -6,6 +6,7 @@ Guayaquil (-2.19, -79.89) con horizonte a 24h.
 """
 
 import os
+
 import requests
 from common.kafka_client import build_producer, run_loop
 from contracts import TOPIC_PRECIP_PRONOSTICO, construir_pronostico_precip
@@ -42,7 +43,9 @@ def fetch_pronostico_precip() -> list[dict]:
         idx = 1 if len(times) > 1 else 0
         fecha = times[idx]
         precip = float(precip_sums[idx] or 0.0)
-        prob = float(prob_maxs[idx]) if idx < len(prob_maxs) and prob_maxs[idx] is not None else None
+        prob = (
+            float(prob_maxs[idx]) if idx < len(prob_maxs) and prob_maxs[idx] is not None else None
+        )
 
         payload = construir_pronostico_precip(
             fecha=fecha,

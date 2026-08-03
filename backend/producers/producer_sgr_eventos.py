@@ -13,6 +13,7 @@ from common.kafka_client import build_producer, run_loop
 
 INTERVAL_SECONDS = int(os.environ.get("INTERVALO_ALERTAS", 15 * 60))
 
+
 def fetch_sgr_events():
     print("[*] Descargando eventos de lluvia (SGR)...")
 
@@ -21,9 +22,9 @@ def fetch_sgr_events():
     url = f"https://sgrportal.gestionderiesgos.gob.ec/server/rest/services/Hosted/EVENTOS_X_LLUVIAS/FeatureServer/0/query?where={urllib.parse.quote(where_clause)}&outFields=*&outSR=4326&f=geojson"
 
     try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req) as response:
-            data = json.loads(response.read().decode('utf-8'))
+            data = json.loads(response.read().decode("utf-8"))
 
             return data
     except Exception as e:
@@ -32,16 +33,16 @@ def fetch_sgr_events():
 
 def run_producer():
     producer = build_producer()
+
     def _fetch():
         data = fetch_sgr_events()
         if data:
-            wrapped = {
-                "metadata": {"source": "SGR Eventos Lluvia"},
-                "data": data
-            }
+            wrapped = {"metadata": {"source": "SGR Eventos Lluvia"}, "data": data}
             return [wrapped]
         return []
+
     run_loop(producer, "sgr-eventos", _fetch, interval_seconds=INTERVAL_SECONDS)
+
 
 if __name__ == "__main__":
     run_producer()

@@ -12,7 +12,7 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 
 for directorio in (
-    RAIZ / "backend",            # contracts.py
+    RAIZ / "backend",  # contracts.py
     RAIZ / "backend" / "spark",  # risk_index.py, spark_streaming_job.py
     RAIZ / "backend" / "producers",
 ):
@@ -46,19 +46,29 @@ except ImportError:
     _types = types.ModuleType("pyspark.sql.types")
 
     class _Dummy:
-        def __init__(self, *args, **kwargs): pass
-        def __call__(self, *args, **kwargs): return self
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __call__(self, *args, **kwargs):
+            return self
+
     _sql.DataFrame = _Dummy
     _sql.SparkSession = _Dummy
     _pyspark.sql = _sql
     _pyspark.sql.functions = _functions
     _pyspark.sql.types = _types
 
-    for tname in ["StringType", "DoubleType", "BooleanType", "LongType", "StructField", "StructType"]:
+    for tname in [
+        "StringType",
+        "DoubleType",
+        "BooleanType",
+        "LongType",
+        "StructField",
+        "StructType",
+    ]:
         setattr(_types, tname, _Dummy)
 
     sys.modules["pyspark"] = _pyspark
     sys.modules["pyspark.sql"] = _sql
     sys.modules["pyspark.sql.functions"] = _functions
     sys.modules["pyspark.sql.types"] = _types
-

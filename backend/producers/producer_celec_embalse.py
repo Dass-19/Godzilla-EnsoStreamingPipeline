@@ -116,7 +116,7 @@ def _extraer_desde_post(post: dict) -> dict | None:
     titulo = _limpiar_html(post.get("title", {}).get("rendered", ""))
     extracto = _limpiar_html(post.get("excerpt", {}).get("rendered", ""))
     content = _limpiar_html(post.get("content", {}).get("rendered", ""))
-    texto_limpio = f"{titulo} {extracto} {content}"          # <- sin dejar_solo_palabras
+    texto_limpio = f"{titulo} {extracto} {content}"  # <- sin dejar_solo_palabras
     texto_para_keywords = _dejar_solo_palabras(texto_limpio)  # <- solo para el filtro de relevancia
 
     if not _es_post_relevante(texto_para_keywords):
@@ -167,14 +167,16 @@ def fetch_nivel_embalse() -> list[dict]:
         if datos is None:
             continue
 
-        registros.append(construir_embalse(
-            nivel_msnm=datos["nivel_msnm"],
-            descripcion=datos["descripcion"],
-            url_fuente=datos["url_fuente"],
-            fecha_noticia=datos["fecha_noticia"],
-            # nivel_maximo_msnm es opcional: no todos los boletines lo mencionan
-            nivel_maximo_msnm=datos.get("nivel_maximo_msnm"),
-        ))
+        registros.append(
+            construir_embalse(
+                nivel_msnm=datos["nivel_msnm"],
+                descripcion=datos["descripcion"],
+                url_fuente=datos["url_fuente"],
+                fecha_noticia=datos["fecha_noticia"],
+                # nivel_maximo_msnm es opcional: no todos los boletines lo mencionan
+                nivel_maximo_msnm=datos.get("nivel_maximo_msnm"),
+            )
+        )
 
     return registros
 

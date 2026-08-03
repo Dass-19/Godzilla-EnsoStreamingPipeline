@@ -8,6 +8,7 @@ job de Spark.
 """
 
 import os
+
 import requests
 from common.kafka_client import build_producer, run_loop
 from contracts import TOPIC_PRECIP_ESTACIONES, construir_lluvia_estacion
@@ -48,9 +49,7 @@ def fetch_inamhi_precipitacion() -> dict:
             continue
 
         try:
-            resp_data = requests.post(
-                URL_PRECIPITACION, json={"id_estacion": id_est}, timeout=8
-            )
+            resp_data = requests.post(URL_PRECIPITACION, json={"id_estacion": id_est}, timeout=8)
             if not resp_data.ok:
                 continue
             data = resp_data.json()

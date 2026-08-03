@@ -121,7 +121,9 @@ def read_all_partitions_parquet(
         descartadas = len(particiones) - max_particiones
         logger.info(
             "%s: leyendo las %s particiones más recientes (%s descartadas)",
-            base_path, max_particiones, descartadas,
+            base_path,
+            max_particiones,
+            descartadas,
         )
         particiones = particiones[-max_particiones:]
 

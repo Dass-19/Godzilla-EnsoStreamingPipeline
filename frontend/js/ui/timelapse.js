@@ -2,7 +2,7 @@
 // CONTROLADOR DE TIME-LAPSE (SST / NASA GIBS)
 // ==========================================
 
-import { map } from '../map/map-manager.js?v=16';
+import { map } from '../map/map-manager.js?v=18';
 
 let timeLapseInterval = null;
 

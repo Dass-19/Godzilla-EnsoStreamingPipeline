@@ -62,6 +62,7 @@ PAYLOAD_NASA_POWER = {
 
 # --- Marea ----------------------------------------------------------------
 
+
 def test_parse_marea_lee_el_payload_de_inocar():
     assert parse_marea(PAYLOAD_MAREA_INOCAR) == pytest.approx(2.734)
 
@@ -78,13 +79,17 @@ def test_parse_marea_ignora_la_ruta_anidada_que_nunca_existio():
 
 def test_round_trip_marea():
     payload = construir_marea(
-        altura_m=1.2345, tendencia="bajando", pleamar=False, fuente="INOCAR_pdf",
+        altura_m=1.2345,
+        tendencia="bajando",
+        pleamar=False,
+        fuente="INOCAR_pdf",
     )
     assert parse_marea(payload) == pytest.approx(1.234, abs=1e-3)
     assert payload["pleamar"] is False
 
 
 # --- Embalse --------------------------------------------------------------
+
 
 def test_parse_embalse_lee_la_cota_del_payload_de_celec():
     assert parse_embalse(PAYLOAD_EMBALSE_CELEC) == pytest.approx(82.15)
@@ -104,15 +109,18 @@ def test_round_trip_embalse_sin_nivel_maximo():
 
 # --- Precipitación --------------------------------------------------------
 
+
 def test_parse_precipitacion_toma_el_dia_mas_reciente_con_dato():
     assert parse_precipitacion(PAYLOAD_NASA_POWER) == pytest.approx(47.9)
 
 
 def test_parse_precipitacion_descarta_el_centinela_y_los_negativos():
-    payload = {"data": [
-        {"date": "20260730", "precipitation_mm": CENTINELA_NASA_POWER},
-        {"date": "20260729", "precipitation_mm": -3.0},
-    ]}
+    payload = {
+        "data": [
+            {"date": "20260730", "precipitation_mm": CENTINELA_NASA_POWER},
+            {"date": "20260729", "precipitation_mm": -3.0},
+        ]
+    }
     assert parse_precipitacion(payload) is None
 
 
@@ -140,13 +148,20 @@ def test_parse_precipitacion_ignora_el_payload_de_inamhi():
 
 
 def test_round_trip_precipitacion():
-    payload = {"data": [construir_precipitacion_diaria(
-        fecha="20260729", precipitacion_mm=33.3, temperature_2m_C=25.0,
-    )]}
+    payload = {
+        "data": [
+            construir_precipitacion_diaria(
+                fecha="20260729",
+                precipitacion_mm=33.3,
+                temperature_2m_C=25.0,
+            )
+        ]
+    }
     assert parse_precipitacion(payload) == pytest.approx(33.3)
 
 
 # --- Entradas defensivas --------------------------------------------------
+
 
 @pytest.mark.parametrize("parser", [parse_marea, parse_embalse, parse_precipitacion])
 @pytest.mark.parametrize("payload", [None, [], "texto", 42, {}, {"data": "no-lista"}])
@@ -160,6 +175,7 @@ def test_valores_no_numericos_se_tratan_como_ausentes(valor):
 
 
 # --- Procedencia ----------------------------------------------------------
+
 
 def test_lectura_marca_el_respaldo_como_default():
     lectura = Lectura.desde(None, respaldo=1.8, detalle_default="sin dato")
@@ -261,10 +277,20 @@ def test_parse_lluvia_estaciones_respeta_el_limite_de_antiguedad():
     ahora = datetime(2026, 7, 31, 12, 0, 0)
 
     dentro_del_limite = construir_lluvia_estacion(
-        "M004", "M004", -2.19, -79.89, 15.0, "2026-07-28 13:00:00",  # 71h de antigüedad
+        "M004",
+        "M004",
+        -2.19,
+        -79.89,
+        15.0,
+        "2026-07-28 13:00:00",  # 71h de antigüedad
     )
     fuera_del_limite = construir_lluvia_estacion(
-        "M005", "M005", -2.19, -79.89, 15.0, "2026-07-28 11:00:00",  # 73h de antigüedad
+        "M005",
+        "M005",
+        -2.19,
+        -79.89,
+        15.0,
+        "2026-07-28 11:00:00",  # 73h de antigüedad
     )
     payload = {"estaciones": [dentro_del_limite, fuera_del_limite]}
 
@@ -301,4 +327,3 @@ def test_round_trip_sst_semanal():
         anomalia_nino12_c=2.1,
     )
     assert parse_anomalia_nino12(payload) == pytest.approx(2.1)
-

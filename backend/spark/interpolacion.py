@@ -9,7 +9,8 @@ zona a partir de las estaciones INAMHI vigentes.
 from __future__ import annotations
 
 import math
-from typing import Sequence, TypeVar, Protocol
+from collections.abc import Sequence
+from typing import Protocol, TypeVar
 
 
 class PuntoConCoordenadas(Protocol):

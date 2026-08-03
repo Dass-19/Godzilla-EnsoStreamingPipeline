@@ -8,6 +8,7 @@ en 2021.
 """
 
 import os
+
 import requests
 from common.kafka_client import build_producer, run_loop
 from contracts import TOPIC_SST_SEMANAL, construir_sst_semanal

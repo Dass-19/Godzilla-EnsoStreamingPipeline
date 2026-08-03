@@ -9,6 +9,7 @@ en metros.
 from __future__ import annotations
 
 import os
+
 import certifi
 import requests
 from common.kafka_client import build_producer, run_loop

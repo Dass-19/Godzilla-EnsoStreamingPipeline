@@ -24,19 +24,19 @@ def ingest_data():
             return None
 
         data_io = io.StringIO(response.text)
-        df = pd.read_csv(data_io, sep=r'\s+', header=0)
+        df = pd.read_csv(data_io, sep=r"\s+", header=0)
 
         records = []
         for _, row in df.iterrows():
             record = {
-                "year": int(row['YR']),
-                "month": int(row['MON']),
+                "year": int(row["YR"]),
+                "month": int(row["MON"]),
                 "regions": {
-                    "nino_1_2": {"sst": float(row['NINO1+2']), "anomaly": float(row['ANOM'])},
-                    "nino_3": {"sst": float(row['NINO3']), "anomaly": float(row['ANOM.1'])},
-                    "nino_4": {"sst": float(row['NINO4']), "anomaly": float(row['ANOM.2'])},
-                    "nino_3_4": {"sst": float(row['NINO3.4']), "anomaly": float(row['ANOM.3'])}
-                }
+                    "nino_1_2": {"sst": float(row["NINO1+2"]), "anomaly": float(row["ANOM"])},
+                    "nino_3": {"sst": float(row["NINO3"]), "anomaly": float(row["ANOM.1"])},
+                    "nino_4": {"sst": float(row["NINO4"]), "anomaly": float(row["ANOM.2"])},
+                    "nino_3_4": {"sst": float(row["NINO3.4"]), "anomaly": float(row["ANOM.3"])},
+                },
             }
             records.append(record)
 
@@ -45,7 +45,7 @@ def ingest_data():
                 "source": "NOAA SST Indices",
                 "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
             },
-            "data": records
+            "data": records,
         }
     except Exception as e:
         print(f"[-] Error al descargar/procesar datos de NOAA: {e}")
@@ -60,6 +60,7 @@ def run_producer():
         if data:
             return [data]
         return []
+
     run_loop(producer, "noaa-data", _fetch, interval_seconds=INTERVAL_SECONDS)
 
 

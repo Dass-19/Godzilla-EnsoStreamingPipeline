@@ -3,7 +3,7 @@ Tests unitarios para la interpolación espacial IDW.
 """
 
 from dataclasses import dataclass
-import pytest
+
 from interpolacion import haversine_km, interpolar_idw
 
 

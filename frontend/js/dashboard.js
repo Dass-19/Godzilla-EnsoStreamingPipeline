@@ -2,7 +2,7 @@
 // CONTROLADOR DEL DASHBOARD (DATOS EN TIEMPO REAL)
 // ==========================================
 
-import { setText, spanTexto, mensajeVacio } from './config.js?v=16';
+import { setText, spanTexto, mensajeVacio } from './config.js?v=18';
 import {
     fetchEnsoEstado,
     fetchMacroIndexes,
@@ -13,10 +13,10 @@ import {
     fetchRiesgoZonas,
     fetchCaudalGeoglows,
     fetchSgrEvents
-} from './api/client.js?v=16';
-import { map, isLayersLoaded } from './map/map-manager.js?v=16';
-import { updateGlobalRiskGauge } from './components/charts.js?v=16';
-import { getIsSimulating } from './ui/simulation.js?v=16';
+} from './api/client.js?v=18';
+import { map, isLayersLoaded } from './map/map-manager.js?v=18';
+import { updateGlobalRiskGauge } from './components/charts.js?v=18';
+import { getIsSimulating } from './ui/simulation.js?v=18';
 
 export async function updateDashboard() {
     await Promise.all([
@@ -95,8 +95,8 @@ export async function updateEnsoData() {
 export async function updateMacroIndexes() {
     try {
         const json = await fetchMacroIndexes();
-        if (json.data && json.data.length > 0) {
-            const data = json.data[0];
+        if (json && json.length > 0) {
+            const data = json[0];
             setText('val-soi', `${data.soi_proxy_diff.toFixed(2)} hPa`);
             const valDarwin = document.getElementById('val-darwin');
             if (valDarwin) valDarwin.innerHTML = `${data.darwin_mslp_hpa.toFixed(1)}<br>hPa`;
@@ -110,8 +110,8 @@ export async function updateMacroIndexes() {
 export async function updateOpenMeteoData() {
     try {
         const json = await fetchOpenMeteoData();
-        if (json.data && json.data.length > 0) {
-            const data = json.data[json.data.length - 1];
+        if (json && json.length > 0) {
+            const data = json[json.length - 1];
             window.currentPrecipSum = data.precipitation_sum_mm || 0;
             setText('val-meteo-rain', `${data.precipitation_sum_mm.toFixed(1)} mm`);
             setText('val-meteo-wind', `${data.max_wind_speed_ms.toFixed(1)} m/s`);
@@ -280,13 +280,7 @@ export async function updateRiskZonesAndGauge() {
 export async function updateHydroData() {
     try {
         const json = await fetchCaudalGeoglows();
-        let caudalVal = 400.0;
-        if (json.data && json.data.length > 0) {
-            const last = json.data[json.data.length - 1];
-            caudalVal = last.caudal_m3s || last.q_m3s || 400.0;
-        } else if (json.caudal_m3s) {
-            caudalVal = json.caudal_m3s;
-        }
+        const caudalVal = json.caudal_m3s || json.q_m3s || 400.0;
 
         setText('val-caudal-rio', `${caudalVal.toFixed(0)} m³/s`);
         const estadoEl = document.getElementById('val-caudal-estado');
@@ -308,8 +302,8 @@ export async function updateHydroData() {
         const diffAnom = tideHeight - 2.0;
         const anomEl = document.getElementById('val-anomalia-marea');
         if (anomEl) {
-            anomalia_marea.innerText = `${diffAnom >= 0 ? '+' : ''}${diffAnom.toFixed(2)}m vs armónico`;
-            anomalia_marea.style.color = diffAnom > 0.5 ? "#f87171" : "#4ade80";
+            anomEl.innerText = `${diffAnom >= 0 ? '+' : ''}${diffAnom.toFixed(2)}m vs armónico`;
+            anomEl.style.color = diffAnom > 0.5 ? "#f87171" : "#4ade80";
         }
     } catch (e) {
         console.error("Error Hydro Data:", e);

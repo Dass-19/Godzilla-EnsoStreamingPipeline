@@ -2,8 +2,8 @@
 // CONTROLES DE INTERFAZ (VISTAS Y TOGGLES)
 // ==========================================
 
-import { CONFIG } from '../config.js?v=16';
-import { map, isLayersLoaded } from '../map/map-manager.js?v=16';
+import { CONFIG } from '../config.js?v=18';
+import { map, isLayersLoaded } from '../map/map-manager.js?v=18';
 
 export const PARROQUIAS_COORDS = {
     "TARQUI": { name: "Tarqui (Urdesa / Sauces)", center: [-79.912, -2.165], zoom: 13.5, pitch: 40 },

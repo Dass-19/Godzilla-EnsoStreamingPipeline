@@ -2,7 +2,7 @@
 // CLIENTE API DE SERVICIOS
 // ==========================================
 
-import { CONFIG } from '../config.js?v=16';
+import { CONFIG } from '../config.js?v=18';
 
 /**
  * Desempaqueta y valida respuestas con envoltura RespuestaAPI { status, data, error, meta }.

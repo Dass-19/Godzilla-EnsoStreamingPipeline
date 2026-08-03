@@ -11,6 +11,7 @@ from __future__ import annotations
 import csv
 import io
 import os
+
 import requests
 from common.kafka_client import build_producer, run_loop
 from contracts import TOPIC_CAUDAL, construir_caudal
@@ -59,9 +60,7 @@ def fetch_caudal_geoglows() -> list[dict]:
                 reader = csv.DictReader(f)
                 for row in reader:
                     val_str = (
-                        row.get("flow_median")
-                        or row.get("flow_median_m3s")
-                        or row.get("flow_m3s")
+                        row.get("flow_median") or row.get("flow_median_m3s") or row.get("flow_m3s")
                     )
                     if val_str:
                         caudal_val = float(val_str)

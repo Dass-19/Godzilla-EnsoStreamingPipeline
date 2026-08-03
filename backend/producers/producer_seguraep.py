@@ -25,72 +25,75 @@ from hdfs import InsecureClient
 
 LAYERS = [
     {
-      "title": "sgr_zonas_inundables",
-      "url": "https://services1.arcgis.com/ESOnuLz5X3I3J4At/arcgis/rest/services/Zonas_Inundables/FeatureServer/28"
-      },
+        "title": "sgr_zonas_inundables",
+        "url": "https://services1.arcgis.com/ESOnuLz5X3I3J4At/arcgis/rest/services/Zonas_Inundables/FeatureServer/28",
+    },
     {
-      "title": "sgr_zonas_seguras",
-      "url": "https://services1.arcgis.com/ESOnuLz5X3I3J4At/arcgis/rest/services/Zonas_Seguras/FeatureServer/16"
-      },
+        "title": "sgr_zonas_seguras",
+        "url": "https://services1.arcgis.com/ESOnuLz5X3I3J4At/arcgis/rest/services/Zonas_Seguras/FeatureServer/16",
+    },
     {
-      "title": "sgr_vias_inundables",
-      "url": "https://services1.arcgis.com/ESOnuLz5X3I3J4At/arcgis/rest/services/Vías_Inundables/FeatureServer/5"
-      },
+        "title": "sgr_vias_inundables",
+        "url": "https://services1.arcgis.com/ESOnuLz5X3I3J4At/arcgis/rest/services/Vías_Inundables/FeatureServer/5",
+    },
     {
-      "title": "sgr_zonas_vulnerables_marea_alta",
-      "url": "https://services7.arcgis.com/NWWHhu45fOJtCgG3/arcgis/rest/services/Puntos_vulnerables_por_marea_alta/FeatureServer/0"
-      },
+        "title": "sgr_zonas_vulnerables_marea_alta",
+        "url": "https://services7.arcgis.com/NWWHhu45fOJtCgG3/arcgis/rest/services/Puntos_vulnerables_por_marea_alta/FeatureServer/0",
+    },
     {
-      "title": "sgr_sectores_celestes",
-      "url": "https://services7.arcgis.com/NWWHhu45fOJtCgG3/arcgis/rest/services/AGA_FINAL/FeatureServer/0"
-      },
+        "title": "sgr_sectores_celestes",
+        "url": "https://services7.arcgis.com/NWWHhu45fOJtCgG3/arcgis/rest/services/AGA_FINAL/FeatureServer/0",
+    },
     {
-      "title": "sgr_parroquias_guayaquil",
-      "url_urbanas": "https://geoportalcat.guayaquil.gob.ec/arcgis/rest/services/Geoportal_Actualizado/GEOPORTAL_ACTUALIZADO/MapServer/9",
-      "url_rurales": "https://services7.arcgis.com/iFGeGXTAJXnjq0YN/ArcGIS/rest/services/Parroquias_del_Ecuador/FeatureServer/0"
-      }
+        "title": "sgr_parroquias_guayaquil",
+        "url_urbanas": "https://geoportalcat.guayaquil.gob.ec/arcgis/rest/services/Geoportal_Actualizado/GEOPORTAL_ACTUALIZADO/MapServer/9",
+        "url_rurales": "https://services7.arcgis.com/iFGeGXTAJXnjq0YN/ArcGIS/rest/services/Parroquias_del_Ecuador/FeatureServer/0",
+    },
 ]
 
 
-def download_layer(layer_info, hdfs_client, hdfs_base_path, fmt='geojson'):
-    title = layer_info['title']
+def download_layer(layer_info, hdfs_client, hdfs_base_path, fmt="geojson"):
+    title = layer_info["title"]
     filename = title
 
     if title == "sgr_parroquias_guayaquil":
         try:
             print("[*] Descargando parroquias urbanas y rurales...")
             # Urbanas
-            u_req = urllib.request.Request(f"{layer_info['url_urbanas']}/query?where=1=1&outFields=*&outSR=4326&f=geojson", headers={'User-Agent': 'Mozilla/5.0'})
+            u_req = urllib.request.Request(
+                f"{layer_info['url_urbanas']}/query?where=1=1&outFields=*&outSR=4326&f=geojson",
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
             with urllib.request.urlopen(u_req) as resp:
-                u_data = json.loads(resp.read().decode('utf-8'))
-            
+                u_data = json.loads(resp.read().decode("utf-8"))
+
             # Rurales
-            r_req = urllib.request.Request(f"{layer_info['url_rurales']}/query?where=DPA_DESCAN='GUAYAQUIL'&outFields=*&outSR=4326&f=geojson", headers={'User-Agent': 'Mozilla/5.0'})
+            r_req = urllib.request.Request(
+                f"{layer_info['url_rurales']}/query?where=DPA_DESCAN='GUAYAQUIL'&outFields=*&outSR=4326&f=geojson",
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
             with urllib.request.urlopen(r_req) as resp:
-                r_data = json.loads(resp.read().decode('utf-8'))
+                r_data = json.loads(resp.read().decode("utf-8"))
 
             combined_features = []
-            for f in u_data.get('features', []):
-                p = f.get('properties', {})
-                p['name'] = p.get('Nam', p.get('PARROQUIA', 'Parroquia Urbana'))
-                p['tipo'] = 'Urbana'
-                f['properties'] = p
+            for f in u_data.get("features", []):
+                p = f.get("properties", {})
+                p["name"] = p.get("Nam", p.get("PARROQUIA", "Parroquia Urbana"))
+                p["tipo"] = "Urbana"
+                f["properties"] = p
                 combined_features.append(f)
 
-            for f in r_data.get('features', []):
-                p = f.get('properties', {})
-                p['name'] = p.get('DPA_DESPAR', p.get('PARROQUIA', 'Parroquia Rural'))
-                p['tipo'] = 'Rural'
-                f['properties'] = p
+            for f in r_data.get("features", []):
+                p = f.get("properties", {})
+                p["name"] = p.get("DPA_DESPAR", p.get("PARROQUIA", "Parroquia Rural"))
+                p["tipo"] = "Rural"
+                f["properties"] = p
                 combined_features.append(f)
 
-            data = {
-                "type": "FeatureCollection",
-                "features": combined_features
-            }
+            data = {"type": "FeatureCollection", "features": combined_features}
 
             hdfs_path = f"{hdfs_base_path}/{filename}.{fmt}"
-            content = json.dumps(data).encode('utf-8')
+            content = json.dumps(data).encode("utf-8")
             hdfs_client.write(hdfs_path, data=content, overwrite=True)
             print(f"[+] Guardado en HDFS: {hdfs_path} ({len(combined_features)} parroquias)")
             return
@@ -98,7 +101,7 @@ def download_layer(layer_info, hdfs_client, hdfs_base_path, fmt='geojson'):
             print(f"[-] Error descargando parroquias: {e}")
             return
 
-    base_url = layer_info['url']
+    base_url = layer_info["url"]
     query_url = f"{base_url}/query?where=1=1&outFields=*&outSR=4326&f={fmt}"
 
     try:
@@ -108,53 +111,55 @@ def download_layer(layer_info, hdfs_client, hdfs_base_path, fmt='geojson'):
 
         while True:
             paged_url = query_url + f"&resultOffset={offset}"
-            safe_url = urllib.parse.quote(paged_url, safe=':/?=&')
+            safe_url = urllib.parse.quote(paged_url, safe=":/?=&")
 
-            req = urllib.request.Request(safe_url, headers={'User-Agent': 'Mozilla/5.0'})
+            req = urllib.request.Request(safe_url, headers={"User-Agent": "Mozilla/5.0"})
             with urllib.request.urlopen(req) as response:
-                page_data = json.loads(response.read().decode('utf-8'))
+                page_data = json.loads(response.read().decode("utf-8"))
                 if base_data is None:
                     base_data = page_data
 
-                features = page_data.get('features', [])
+                features = page_data.get("features", [])
                 if not features:
                     break
                 all_features.extend(features)
 
                 print(f"[*] Descargados {len(all_features)} registros para {title}...")
 
-                if page_data.get('exceededTransferLimit') or len(features) >= 2000:
+                if page_data.get("exceededTransferLimit") or len(features) >= 2000:
                     offset += len(features)
                 else:
                     break
 
         data = base_data
-        data['features'] = all_features
+        data["features"] = all_features
 
         # Post-procesamiento especial en GeoJSON
-        if fmt == 'geojson':
+        if fmt == "geojson":
             if title == "sgr_sectores_celestes":
-                for feature in data.get('features', []):
-                    if 'properties' not in feature:
-                        feature['properties'] = {}
-                    feature['properties']['color'] = '#38bdf8'
-                    distrito = feature['properties'].get('DISTRITO')
+                for feature in data.get("features", []):
+                    if "properties" not in feature:
+                        feature["properties"] = {}
+                    feature["properties"]["color"] = "#38bdf8"
+                    distrito = feature["properties"].get("DISTRITO")
                     if distrito:
-                        feature['properties']['name'] = f"Distrito {distrito}"
+                        feature["properties"]["name"] = f"Distrito {distrito}"
             elif title == "sgr_zonas_inundables":
-                for feature in data.get('features', []):
-                    if 'properties' not in feature:
-                        feature['properties'] = {}
-                    feature['properties']['color'] = 'rgba(64, 224, 208, 0.5)'  # Turquesa un poco opaco
+                for feature in data.get("features", []):
+                    if "properties" not in feature:
+                        feature["properties"] = {}
+                    feature["properties"]["color"] = (
+                        "rgba(64, 224, 208, 0.5)"  # Turquesa un poco opaco
+                    )
             elif title == "sgr_vias_inundables":
-                for feature in data.get('features', []):
-                    if 'properties' not in feature:
-                        feature['properties'] = {}
-                    feature['properties']['color'] = '#ef4444'  # Rojo
+                for feature in data.get("features", []):
+                    if "properties" not in feature:
+                        feature["properties"] = {}
+                    feature["properties"]["color"] = "#ef4444"  # Rojo
 
         # Guardar directamente en HDFS
         hdfs_path = f"{hdfs_base_path}/{filename}.{fmt}"
-        content = json.dumps(data).encode('utf-8')
+        content = json.dumps(data).encode("utf-8")
         hdfs_client.write(hdfs_path, data=content, overwrite=True)
         print(f"[+] Guardado en HDFS: {hdfs_path}")
 
@@ -172,7 +177,7 @@ def run_script():
 
     print("[*] Iniciando descarga de capas (SeguraEP) a HDFS directamente...")
     for layer in LAYERS:
-        for fmt in ['geojson']:
+        for fmt in ["geojson"]:
             download_layer(layer, client, hdfs_base_path, fmt)
 
     print("[*] Proceso finalizado. Capas de SeguraEP guardadas en HDFS.")

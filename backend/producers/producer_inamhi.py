@@ -4,7 +4,6 @@ Descarga datos reales desde los endpoints del Visor Hidro-Meteorológico
 y del servicio de Pronósticos de INAMHI.
 """
 
-
 import datetime
 import os
 
@@ -20,8 +19,7 @@ ESTACIONES_URL = (
     "&id_provincia=09"
 )
 PRONOSTICO_URL_TPL = (
-    "https://inamhi.gob.ec/api_pronos/forecast/daily_forecast/list_by_date_now/"
-    "?date={fecha}"
+    "https://inamhi.gob.ec/api_pronos/forecast/daily_forecast/list_by_date_now/?date={fecha}"
 )
 
 HEADERS = {
@@ -89,11 +87,13 @@ def ingest_data():
 
 def run_producer():
     producer = build_producer()
+
     def _fetch():
         data = ingest_data()
         if data:
             return [data]
         return []
+
     run_loop(producer, "inamhi-data", _fetch, interval_seconds=INTERVAL_SECONDS)
 
 

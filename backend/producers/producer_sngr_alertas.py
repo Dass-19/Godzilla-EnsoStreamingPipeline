@@ -38,8 +38,17 @@ WP_API_URL = "https://www.gestionderiesgos.gob.ec/wp-json/wp/v2/posts"
 PALABRAS_CLAVE_BUSQUEDA = "lluvias alerta Guayas"
 
 CANTONES_CUENCA_GUAYAS = [
-    "Guayaquil", "Daule", "Samborondón", "Durán", "Nobol", "Salitre",
-    "Santa Lucía", "Palestina", "Balzar", "Colimes", "El Empalme",
+    "Guayaquil",
+    "Daule",
+    "Samborondón",
+    "Durán",
+    "Nobol",
+    "Salitre",
+    "Santa Lucía",
+    "Palestina",
+    "Balzar",
+    "Colimes",
+    "El Empalme",
 ]
 
 SEVERIDAD_POR_PALABRA = [
@@ -108,7 +117,9 @@ def fetch_alertas() -> list[dict]:
                 "order": "desc",
             },
             timeout=50,
-            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"},
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
+            },
         )
         resp.raise_for_status()
         posts = resp.json()
@@ -123,24 +134,24 @@ def fetch_alertas() -> list[dict]:
         titulo = _limpiar_html(post.get("title", {}).get("rendered", ""))
         extracto = _limpiar_html(post.get("excerpt", {}).get("rendered", ""))
         content = _limpiar_html(post.get("content", {}).get("rendered", ""))
-        texto_completo = _dejar_solo_palabras(
-            f"{titulo} {extracto} {content}"
-        )
+        texto_completo = _dejar_solo_palabras(f"{titulo} {extracto} {content}")
 
         ubicacion = _detectar_ubicacion(texto_completo)
         if ubicacion is None:
             # solo nos interesan boletines que mencionen Guayas o sus cantones
             continue
 
-        registros.append({
-            "fuente": "SNGR_wp_api",
-            "canton": ubicacion,
-            "tipo_evento": _detectar_tipo_evento(texto_completo),
-            "severidad": _detectar_severidad(texto_completo),
-            "descripcion": titulo,
-            "url_fuente": post.get("link"),
-            "hora_evento": post["date_gmt"],
-        })
+        registros.append(
+            {
+                "fuente": "SNGR_wp_api",
+                "canton": ubicacion,
+                "tipo_evento": _detectar_tipo_evento(texto_completo),
+                "severidad": _detectar_severidad(texto_completo),
+                "descripcion": titulo,
+                "url_fuente": post.get("link"),
+                "hora_evento": post["date_gmt"],
+            }
+        )
 
     return registros
 

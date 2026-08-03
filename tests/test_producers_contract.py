@@ -63,15 +63,17 @@ def test_nasa_power_pide_una_ventana_movil_y_no_un_rango_fijo():
     assert inicio < fin
     # La ventana termina hoy, no en una fecha escrita a mano.
     import datetime
-    from datetime import timezone
-    assert fin == datetime.datetime.now(timezone.utc).date().strftime("%Y%m%d")
+
+    assert fin == datetime.datetime.now(datetime.UTC).date().strftime("%Y%m%d")
 
 
 def test_el_registro_de_nasa_power_cumple_el_contrato():
     import producer_nasa_power
 
     registro = producer_nasa_power.construir_precipitacion_diaria(
-        fecha="20260729", precipitacion_mm=18.2, temperature_2m_C=25.0,
+        fecha="20260729",
+        precipitacion_mm=18.2,
+        temperature_2m_C=25.0,
     )
     assert parse_precipitacion({"data": [registro]}) == pytest.approx(18.2)
 

@@ -13,7 +13,7 @@ INTERVAL_SECONDS = int(os.environ.get("INTERVALO_INDICES", 60 * 60))
 
 BUOYS = [
     {"id": "32320", "name": "Boya TAO 95W (Galápagos)", "lat": 0.0, "lon": -95.0},
-    {"id": "32321", "name": "Boya TAO 110W (Pacífico Central)", "lat": 0.0, "lon": -110.0}
+    {"id": "32321", "name": "Boya TAO 110W (Pacífico Central)", "lat": 0.0, "lon": -110.0},
 ]
 
 VARIABLES = "wave_height,ocean_current_velocity,sea_surface_temperature"
@@ -46,11 +46,12 @@ def fetch_buoy_data(buoy):
             "fuente_sst": "open_meteo_marine" if water_temp is not None else "no_disponible",
             "wave_height_m": current.get("wave_height"),
             "current_velocity_kmh": current.get("ocean_current_velocity"),
-            "timestamp": datetime.datetime.now(datetime.UTC).isoformat()
+            "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
         }
     except Exception as e:
         print(f"[-] Error obteniendo datos para la boya {buoy['id']}: {e}")
         return None
+
 
 def ingest_data():
     print("[*] Obteniendo datos en tiempo real de boyas oceánicas...")
@@ -65,38 +66,40 @@ def ingest_data():
 
     return records
 
+
 def run_producer():
     producer = build_producer()
+
     def _fetch():
         data = ingest_data()
         if data:
             # Empaquetar como un solo mensaje tipo FeatureCollection (para MapLibre)
             features = []
             for r in data:
-                features.append({
-                    "type": "Feature",
-                    "geometry": {
-                        "type": "Point",
-                        "coordinates": [r["longitude"], r["latitude"]]
-                    },
-                    "properties": {
-                        "id": r["buoy_id"],
-                        "name": r["name"],
-                        "water_temp_c": r["water_temp_c"],
-                        "fuente_sst": r["fuente_sst"],
-                        "wave_height_m": r["wave_height_m"],
-                        "current_velocity_kmh": r["current_velocity_kmh"]
+                features.append(
+                    {
+                        "type": "Feature",
+                        "geometry": {
+                            "type": "Point",
+                            "coordinates": [r["longitude"], r["latitude"]],
+                        },
+                        "properties": {
+                            "id": r["buoy_id"],
+                            "name": r["name"],
+                            "water_temp_c": r["water_temp_c"],
+                            "fuente_sst": r["fuente_sst"],
+                            "wave_height_m": r["wave_height_m"],
+                            "current_velocity_kmh": r["current_velocity_kmh"],
+                        },
                     }
-                })
+                )
 
-            geojson = {
-                "type": "FeatureCollection",
-                "features": features
-            }
+            geojson = {"type": "FeatureCollection", "features": features}
             return [geojson]
         return []
 
     run_loop(producer, "ndbc-buoys", _fetch, interval_seconds=INTERVAL_SECONDS)
+
 
 if __name__ == "__main__":
     run_producer()

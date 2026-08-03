@@ -4,7 +4,6 @@
 
 export const CONFIG = {
     API_BASE: "/api/",
-    DATA_BASE: "/data/",
     OSRM_BASE: "https://router.project-osrm.org/route/v1/driving/",
     OPEN_METEO_BASE: "https://api.open-meteo.com/v1/forecast",
     MAP_CENTER_REGIONAL: [-95.0, -1.5],

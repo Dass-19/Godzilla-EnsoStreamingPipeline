@@ -2,7 +2,7 @@
 // GESTOR DE MAPA (MAPLIBRE GL)
 // ==========================================
 
-import { CONFIG } from '../config.js?v=16';
+import { CONFIG } from '../config.js?v=18';
 
 export let map = null;
 let layersLoaded = false;
@@ -51,7 +51,7 @@ export function initMap() {
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }));
 
     // Cargar Zonas Seguras para cálculo de rutas
-    fetch(CONFIG.DATA_BASE + 'sgr_zonas_seguras.geojson')
+    fetch(CONFIG.API_BASE + 'capas/zonas-seguras')
         .then(r => r.json())
         .then(d => { safeZonesGeoJSON = d.data ? d.data : (d.datos ? d.datos : d); })
         .catch(e => console.error('Error cargando zonas seguras:', e));
@@ -85,7 +85,8 @@ export function initMap() {
         'sgr_vias_inundables.geojson': 'capas/vias-inundables',
         'sgr_vias_vulnerables_marea_alta.geojson': 'capas/vias-vulnerables-marea',
         'sgr_eventos.json': 'eventos/sgr',
-        'guayas_osm.geojson': 'capas/guayas-osm'
+        'guayas_osm.geojson': 'capas/guayas-osm',
+        'ndbc_buoys.json': 'boyas/ndbc'
     };
 
     const getEndpointUrl = (name) => {

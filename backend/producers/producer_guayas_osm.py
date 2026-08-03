@@ -14,12 +14,10 @@ from common.kafka_client import build_producer, send_record
 OVERPASS_URLS = [
     "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
-    "https://overpass.private.coffee/api/interpreter"
+    "https://overpass.private.coffee/api/interpreter",
 ]
 
-HEADERS = {
-    "User-Agent": "GuayasGeoIngest/1.0 (contacto@ejemplo.com)"
-}
+HEADERS = {"User-Agent": "GuayasGeoIngest/1.0 (contacto@ejemplo.com)"}
 
 # Si Overpass no responde, este productor no publica nada y se conserva la
 # última capa válida en el dashboard.
@@ -51,14 +49,16 @@ def fetch_osm_data():
             print(f"[*] Probando endpoint: {url}")
             response = requests.post(
                 url,
-                data={'data': overpass_query},
+                data={"data": overpass_query},
                 headers=HEADERS,
                 timeout=60,  # timeout del cliente > timeout de la query, margen de red
             )
             if response.status_code == 200:
                 break  # este mirror funcionó
             else:
-                print(f"[-] {url} devolvió HTTP {response.status_code}. Probando siguiente mirror...")
+                print(
+                    f"[-] {url} devolvió HTTP {response.status_code}. Probando siguiente mirror..."
+                )
                 last_error = f"HTTP {response.status_code}"
                 response = None
         except requests.exceptions.RequestException as e:
@@ -74,21 +74,29 @@ def fetch_osm_data():
         data = response.json()
 
         features = []
-        nodes = {node['id']: (node['lon'], node['lat']) for node in data['elements'] if node['type'] == 'node'}
+        nodes = {
+            node["id"]: (node["lon"], node["lat"])
+            for node in data["elements"]
+            if node["type"] == "node"
+        }
 
-        for element in data['elements']:
-            if element['type'] == 'way':
-                coords = [nodes[node_id] for node_id in element.get('nodes', []) if node_id in nodes]
+        for element in data["elements"]:
+            if element["type"] == "way":
+                coords = [
+                    nodes[node_id] for node_id in element.get("nodes", []) if node_id in nodes
+                ]
                 if len(coords) >= 2:
                     is_polygon = coords[0] == coords[-1]
-                    features.append({
-                        "type": "Feature",
-                        "geometry": {
-                            "type": "Polygon" if is_polygon else "LineString",
-                            "coordinates": [coords] if is_polygon else coords
-                        },
-                        "properties": element.get('tags', {})
-                    })
+                    features.append(
+                        {
+                            "type": "Feature",
+                            "geometry": {
+                                "type": "Polygon" if is_polygon else "LineString",
+                                "coordinates": [coords] if is_polygon else coords,
+                            },
+                            "properties": element.get("tags", {}),
+                        }
+                    )
 
         if not features:
             print("[-] La consulta no devolvió elementos. No se publica nada.")
@@ -110,15 +118,13 @@ def run_producer():
     producer = build_producer()
     data = fetch_osm_data()
     if data:
-        wrapped = {
-            "metadata": {"source": "OSM API"},
-            "data": data
-        }
+        wrapped = {"metadata": {"source": "OSM API"}, "data": data}
         send_record(producer, "guayas-osm", wrapped)
         producer.flush()
         print("[+] guayas_osm enviado a Kafka.")
     else:
         print("[-] guayas_osm sin datos válidos; no se publicó nada.")
+
 
 if __name__ == "__main__":
     run_producer()

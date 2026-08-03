@@ -4,7 +4,6 @@ Descarga variables atmosféricas clave de la región Niño 3.4 (Pacífico Centra
 Variables: Temperatura, Precipitación, Vientos Alisios (Velocidad y Dirección) y Presión Superficial.
 """
 
-
 import datetime
 import os
 
@@ -34,7 +33,14 @@ def test_connection():
     try:
         # Prueba ligera
         inicio, fin = _ventana_fechas()
-        params = {"latitude": LATITUD_NINO34, "longitude": LONGITUD_NINO34, "start_date": inicio, "end_date": fin, "daily": "temperature_2m_mean", "timezone": "UTC"}
+        params = {
+            "latitude": LATITUD_NINO34,
+            "longitude": LONGITUD_NINO34,
+            "start_date": inicio,
+            "end_date": fin,
+            "daily": "temperature_2m_mean",
+            "timezone": "UTC",
+        }
         response = requests.get(ENDPOINT, params=params, timeout=10)
         if response.status_code == 200:
             print("[+] Conexión exitosa con Open-Meteo (Status 200)")
@@ -46,6 +52,7 @@ def test_connection():
         print(f"[-] Fallo de conexión con Open-Meteo: {e}")
         return False
 
+
 def ingest_data():
     print("[*] Descargando variables atmosféricas predictivas de Open-Meteo...")
     inicio, fin = _ventana_fechas()
@@ -55,7 +62,7 @@ def ingest_data():
         "start_date": inicio,
         "end_date": fin,
         "daily": "temperature_2m_mean,precipitation_sum,wind_speed_10m_max,wind_direction_10m_dominant,shortwave_radiation_sum",
-        "timezone": "UTC"
+        "timezone": "UTC",
     }
     try:
         response = requests.get(ENDPOINT, params=params, timeout=15)
@@ -74,7 +81,7 @@ def ingest_data():
                     "precipitation_sum_mm": daily.get("precipitation_sum", [])[i],
                     "max_wind_speed_ms": daily.get("wind_speed_10m_max", [])[i],
                     "dominant_wind_direction_deg": daily.get("wind_direction_10m_dominant", [])[i],
-                    "shortwave_radiation_mj_m2": daily.get("shortwave_radiation_sum", [])[i]
+                    "shortwave_radiation_mj_m2": daily.get("shortwave_radiation_sum", [])[i],
                 }
                 records.append(record)
 
@@ -88,11 +95,11 @@ def ingest_data():
                     "precipitation_sum (Lluvias ecuatoriales)",
                     "wind_speed_10m_max (Fuerza de los Vientos Alisios)",
                     "wind_direction_10m_dominant (Dirección del viento)",
-                    "shortwave_radiation_sum (Cobertura de nubes)"
+                    "shortwave_radiation_sum (Cobertura de nubes)",
                 ],
-                "timestamp": datetime.datetime.now(datetime.UTC).isoformat()
+                "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
             },
-            "data": records
+            "data": records,
         }
     except Exception as e:
         print(f"[-] Error al descargar/procesar datos de Open-Meteo: {e}")
@@ -101,12 +108,15 @@ def ingest_data():
 
 def run_producer():
     producer = build_producer()
+
     def _fetch():
         data = ingest_data()
         if data:
             return [data]
         return []
+
     run_loop(producer, "open-meteo-data", _fetch, interval_seconds=INTERVAL_SECONDS)
+
 
 if __name__ == "__main__":
     run_producer()

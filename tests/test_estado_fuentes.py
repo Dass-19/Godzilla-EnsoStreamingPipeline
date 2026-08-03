@@ -24,7 +24,9 @@ def test_estado_fuentes_actualizar_y_lecturas():
     assert not lects_init["caudal"].es_real
 
     # Actualizamos con payload real de marea
-    payload_marea = construir_marea(altura_m=2.4, tendencia="subiendo", pleamar=False, fuente="inocar")
+    payload_marea = construir_marea(
+        altura_m=2.4, tendencia="subiendo", pleamar=False, fuente="inocar"
+    )
     estado.actualizar(TOPIC_MAREA, payload_marea)
 
     # Actualizamos con caudal real GEOGLOWS
@@ -39,7 +41,9 @@ def test_estado_fuentes_actualizar_y_lecturas():
         ]
     }
     estado.actualizar(
-        TOPIC_PRECIP_ESTACIONES, payload_precip, ahora=datetime(2026, 7, 31, 13, 0, 0),
+        TOPIC_PRECIP_ESTACIONES,
+        payload_precip,
+        ahora=datetime(2026, 7, 31, 13, 0, 0),
     )
 
     lects = estado.lecturas(lat=-2.19, lon=-79.89)

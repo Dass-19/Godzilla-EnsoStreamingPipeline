@@ -11,7 +11,6 @@ import pytest
 from risk_index import (
     EMBALSE_NIVEL_ALERTA_MSNM,
     EMBALSE_NIVEL_MIN_MSNM,
-    FACTOR_INTERACCION_LLUVIA_MAREA,
     MAREA_MAX_M,
     PESO_HISTORICO,
     PESO_MAREA,
@@ -59,13 +58,17 @@ def test_suma_de_pesos_es_exactamente_uno():
 
 # --- Normalizadores -------------------------------------------------------
 
-@pytest.mark.parametrize("mm, esperado", [
-    (0.0, 0.0),
-    (PRECIP_24H_SATURACION_MM / 2, 0.5),
-    (PRECIP_24H_SATURACION_MM, 1.0),
-    (PRECIP_24H_SATURACION_MM * 3, 1.0),   # satura, no se dispara
-    (-10.0, 0.0),                          # no se vuelve negativo
-])
+
+@pytest.mark.parametrize(
+    "mm, esperado",
+    [
+        (0.0, 0.0),
+        (PRECIP_24H_SATURACION_MM / 2, 0.5),
+        (PRECIP_24H_SATURACION_MM, 1.0),
+        (PRECIP_24H_SATURACION_MM * 3, 1.0),  # satura, no se dispara
+        (-10.0, 0.0),  # no se vuelve negativo
+    ],
+)
 def test_normalizar_precip(mm, esperado):
     assert normalizar_precip(mm) == pytest.approx(esperado)
 
@@ -85,6 +88,7 @@ def test_normalizar_embalse_usa_el_rango_de_operacion():
 
 
 # --- Monotonía por componente --------------------------------------------
+
 
 def test_mas_lluvia_no_baja_el_riesgo():
     valores = [indice(mm, 1.0) for mm in (0, 25, 50, 100, 150)]
@@ -122,11 +126,15 @@ def test_zona_llana_junto_al_estero_es_mas_riesgosa_que_una_zona_alta():
 
 # --- Rango de salida ------------------------------------------------------
 
-@pytest.mark.parametrize("precip, marea, embalse", [
-    (0.0, 0.0, 0.0),
-    (500.0, 10.0, 200.0),        # todo por encima de los umbrales
-    (-5.0, -1.0, -50.0),         # entradas absurdas
-])
+
+@pytest.mark.parametrize(
+    "precip, marea, embalse",
+    [
+        (0.0, 0.0, 0.0),
+        (500.0, 10.0, 200.0),  # todo por encima de los umbrales
+        (-5.0, -1.0, -50.0),  # entradas absurdas
+    ],
+)
 def test_el_indice_siempre_queda_en_0_1(precip, marea, embalse):
     for zona in (ZONA_LLANA, ZONA_ALTA):
         assert 0.0 <= indice(precip, marea, embalse, zona=zona) <= 1.0
@@ -135,7 +143,10 @@ def test_el_indice_siempre_queda_en_0_1(precip, marea, embalse):
 def test_niveles_de_riesgo_cubren_las_cuatro_categorias():
     niveles = {
         calcular_indice_riesgo(
-            precip_24h_mm=p, altura_marea_m=m, caudal_rio_m3s=c, **z,
+            precip_24h_mm=p,
+            altura_marea_m=m,
+            caudal_rio_m3s=c,
+            **z,
         )["nivel_riesgo"]
         for p, m, c, z in [
             (0.0, 0.0, 400.0, ZONA_ALTA),
@@ -149,6 +160,7 @@ def test_niveles_de_riesgo_cubren_las_cuatro_categorias():
 
 # --- Interacción lluvia + marea -----------------------------------
 
+
 def test_lluvia_y_marea_juntas_superan_la_suma_lineal():
     base = indice(0.0, 0.4)
     solo_lluvia = indice(150.0, 0.4) - base
@@ -160,4 +172,3 @@ def test_lluvia_y_marea_juntas_superan_la_suma_lineal():
 
 def test_la_lluvia_pesa_mas_que_la_marea():
     assert PESO_PRECIP > PESO_MAREA
-

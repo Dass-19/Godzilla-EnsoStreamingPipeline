@@ -38,14 +38,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 # Umbrales de normalización (ajustables; documentar la justificación en el informe)
-PRECIP_24H_SATURACION_MM = 150.0     # acumulado que ya se considera crítico en 24h
-MAREA_MIN_M = 0.4                    # bajamar típica del modelo armónico
-MAREA_MAX_M = 3.6                    # pleamar típica del modelo armónico
+PRECIP_24H_SATURACION_MM = 150.0  # acumulado que ya se considera crítico en 24h
+MAREA_MIN_M = 0.4  # bajamar típica del modelo armónico
+MAREA_MAX_M = 3.6  # pleamar típica del modelo armónico
 
-CAUDAL_BASE_M3S = 400.0              # caudal base típico del río Guayas
-CAUDAL_CRECIDA_M3S = 1800.0          # caudal de crecida crítica
-SATURACION_SUELO_MM = 120.0          # API acumulado para saturación de suelo
-ANOMALIA_NINO12_EXTREMA_C = 4.0      # anomalía costera de El Niño de gran magnitud (°C)
+CAUDAL_BASE_M3S = 400.0  # caudal base típico del río Guayas
+CAUDAL_CRECIDA_M3S = 1800.0  # caudal de crecida crítica
+SATURACION_SUELO_MM = 120.0  # API acumulado para saturación de suelo
+ANOMALIA_NINO12_EXTREMA_C = 4.0  # anomalía costera de El Niño de gran magnitud (°C)
 
 # La fuente (CELEC EP) publica la cota del embalse en msnm. Se conserva como referencia.
 EMBALSE_NIVEL_MIN_MSNM = 70.0

@@ -79,11 +79,11 @@ class Lectura:
         return self.origen == ORIGEN_REAL
 
     @classmethod
-    def real(cls, valor: float, detalle: str = "") -> "Lectura":
+    def real(cls, valor: float, detalle: str = "") -> Lectura:
         return cls(valor=float(valor), origen=ORIGEN_REAL, detalle=detalle)
 
     @classmethod
-    def por_defecto(cls, valor: float, detalle: str = "") -> "Lectura":
+    def por_defecto(cls, valor: float, detalle: str = "") -> Lectura:
         return cls(valor=float(valor), origen=ORIGEN_DEFAULT, detalle=detalle)
 
     @classmethod
@@ -92,7 +92,7 @@ class Lectura:
         valor: float | None,
         respaldo: float,
         detalle_default: str = "",
-    ) -> "Lectura":
+    ) -> Lectura:
         """Envuelve el resultado de un `parse_*`: None -> respaldo marcado."""
         if valor is None:
             return cls.por_defecto(respaldo, detalle_default)
@@ -115,6 +115,7 @@ def _a_float(valor: Any) -> float | None:
 # ---------------------------------------------------------------------------
 # Marea — INOCAR (topic `mareas-inocar`)
 # ---------------------------------------------------------------------------
+
 
 def construir_marea(
     altura_m: float,
@@ -143,6 +144,7 @@ def parse_marea(payload: dict) -> float | None:
 # ---------------------------------------------------------------------------
 # Embalse — CELEC EP Daule-Peripa (topic `nivel-embalse-celec`)
 # ---------------------------------------------------------------------------
+
 
 def construir_embalse(
     nivel_msnm: float,
@@ -189,6 +191,7 @@ def parse_embalse(payload: dict) -> float | None:
 # INAMHI, la otra candidata, expone pronóstico cualitativo (`rain: bool`) pero
 # no un acumulado en mm.
 
+
 def construir_precipitacion_diaria(
     fecha: str,
     precipitacion_mm: float | None,
@@ -230,6 +233,7 @@ def parse_precipitacion(payload: dict) -> float | None:
 # ---------------------------------------------------------------------------
 # Estaciones INAMHI — Precipitación observada (topic `inamhi-precipitacion`)
 # ---------------------------------------------------------------------------
+
 
 def construir_lluvia_estacion(
     id_estacion: str,
@@ -358,6 +362,7 @@ def parse_saturacion_antecedente(payload: dict, k: float = 0.9) -> float | None:
 # Pronóstico de precipitación — Open-Meteo (topic `pronostico-precipitacion`)
 # ---------------------------------------------------------------------------
 
+
 def construir_pronostico_precip(
     fecha: str,
     lat: float,
@@ -393,6 +398,7 @@ def parse_pronostico_precip(payload: dict) -> float | None:
 # Marea observada — Mareógrafo IOC `gyer` (topic `marea-observada`)
 # ---------------------------------------------------------------------------
 
+
 def construir_marea_observada(
     altura_m: float,
     estacion: str = "gyer",
@@ -420,6 +426,7 @@ def parse_marea_observada(payload: dict) -> float | None:
 # ---------------------------------------------------------------------------
 # Caudal fluvial — GEOGLOWS (topic `caudal-geoglows`)
 # ---------------------------------------------------------------------------
+
 
 def construir_caudal(
     river_id: int,
@@ -455,6 +462,7 @@ def parse_caudal(payload: dict) -> float | None:
 # SST Semanal — NOAA CPC `wksst9120.for` (topic `sst-semanal`)
 # ---------------------------------------------------------------------------
 
+
 def construir_sst_semanal(
     fecha_semana: str,
     sst_nino12_c: float,
@@ -476,4 +484,3 @@ def parse_anomalia_nino12(payload: dict) -> float | None:
     if not isinstance(payload, dict):
         return None
     return _a_float(payload.get("anomalia_nino12_c"))
-

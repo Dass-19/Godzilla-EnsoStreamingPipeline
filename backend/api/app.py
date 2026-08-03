@@ -26,7 +26,7 @@ import logging
 import os
 import pathlib
 import sys
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from functools import lru_cache
 from typing import Any, Generic, TypeVar
 
@@ -75,8 +75,7 @@ def _resolver_directorio_spark() -> pathlib.Path:
         if (ruta / "risk_index.py").exists():
             return ruta
     raise RuntimeError(
-        "No se encontró risk_index.py. Definí SPARK_APP_DIR apuntando a "
-        "backend/spark."
+        "No se encontró risk_index.py. Definí SPARK_APP_DIR apuntando a backend/spark."
     )
 
 
@@ -125,10 +124,39 @@ tags_metadata = [
         ),
     },
     {
-        "name": "hidrologia_clima",
+        "name": "hidrologia",
         "description": (
-            "Telemetría hidrometeorológica en tiempo real: nivel de mareas, "
-            "embalse Daule-Peripa, clima actual y capas meteorológicas en mapa."
+            "Entradas hidrológicas reales del índice de riesgo, leídas desde su "
+            "último registro archivado en HDFS: marea (INOCAR), embalse "
+            "Daule-Peripa (CELEC, solo contexto) y caudal del río Guayas (GEOGLOWS)."
+        ),
+    },
+    {
+        "name": "clima",
+        "description": (
+            "Telemetría climática archivada (GEE, NASA POWER, Open-Meteo, "
+            "OpenWeatherMap, INAMHI, boyas NDBC): última lectura conocida desde "
+            "HDFS, no una consulta en tiempo real al proveedor."
+        ),
+    },
+    {
+        "name": "clima_proxy",
+        "description": (
+            "Proxies en vivo a OpenWeatherMap — no leen HDFS, consultan al "
+            "proveedor en cada request. Pueden devolver 502 si OpenWeatherMap "
+            "falla, algo que no le pasa a los endpoints de `clima`."
+        ),
+    },
+    {
+        "name": "eventos",
+        "description": "Eventos de lluvia e incidentes reportados por la SGR.",
+    },
+    {
+        "name": "capas_geograficas",
+        "description": (
+            "Capas GeoJSON estáticas o semi-estáticas para el mapa: parroquias, "
+            "sectores, vías inundables/vulnerables, zonas seguras/inundables y "
+            "el contorno del cantón Guayaquil (OSM)."
         ),
     },
     {
@@ -137,7 +165,7 @@ tags_metadata = [
             "Boletines y alertas oficiales emitidas por la Secretaría Nacional "
             "de Gestión de Riesgos (SNGR)."
         ),
-    }
+    },
 ]
 
 app = FastAPI(
@@ -146,7 +174,7 @@ app = FastAPI(
     description="""
 ### 🌊 Plataforma de Monitoreo e Índice de Riesgo ENSO (Guayaquil)
 
-Esta API sirve como el **punto de consumo unificado** para el dashboard interactivo de monitoreo de inundaciones. Todos los endpoints retornan una envoltura estandarizada `RespuestaAPI`.
+Esta API sirve como el **punto de consumo unificado** para el dashboard interactivo de monitoreo de inundaciones. Todos los endpoints retornan una envoltura estandarizada `RespuestaAPI`, con la única excepción de `clima_proxy` → `/api/clima/tiles/...`, que devuelve una imagen PNG cruda para consumo directo de MapLibre/Leaflet.
 
 #### ⚙️ Arquitectura del Pipeline:
 1. **Productores Python (Kafka)**: Ingestan telemetría en vivo desde NOAA, INOCAR, INAMHI, CELEC, OpenWeatherMap y GeoGLOWS.
@@ -194,30 +222,50 @@ T = TypeVar("T")
 class MetaAPI(BaseModel):
     api_version: str = Field("1.2.0", description="Versión activa de la API REST", example="1.2.0")
     timestamp: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat(),
+        default_factory=lambda: datetime.now(UTC).isoformat(),
         description="Marca de tiempo ISO-8601 del servidor API",
         example="2026-08-01T13:20:00Z",
     )
     fuente: str | None = Field(
-        None, description="Origen HDFS o servicio externo de donde se extrajo la información", example="/enso_data/processed/indice_riesgo"
+        None,
+        description="Origen HDFS o servicio externo de donde se extrajo la información",
+        example="/enso_data/processed/indice_riesgo",
     )
     total_registros: int | None = Field(
-        None, description="Cantidad de registros o elementos cuando la carga útil es una lista", example=45
+        None,
+        description="Cantidad de registros o elementos cuando la carga útil es una lista",
+        example=45,
     )
 
 
 class ErrorInfo(BaseModel):
-    codigo: int = Field(..., description="Código de estado HTTP del error (404, 502, 503, etc.)", example=404)
-    tipo: str = Field(..., description="Categorización del tipo de error", example="RECURSO_NO_ENCONTRADO")
-    mensaje: str = Field(..., description="Mensaje legible de error para el usuario o frontend", example="Aún no hay datos de índice de riesgo procesados")
-    detalle: str | None = Field(None, description="Detalle técnico adicional o causa raíz", example="No se encontraron particiones Parquet en HDFS")
+    codigo: int = Field(
+        ..., description="Código de estado HTTP del error (404, 502, 503, etc.)", example=404
+    )
+    tipo: str = Field(
+        ..., description="Categorización del tipo de error", example="RECURSO_NO_ENCONTRADO"
+    )
+    mensaje: str = Field(
+        ...,
+        description="Mensaje legible de error para el usuario o frontend",
+        example="Aún no hay datos de índice de riesgo procesados",
+    )
+    detalle: str | None = Field(
+        None,
+        description="Detalle técnico adicional o causa raíz",
+        example="No se encontraron particiones Parquet en HDFS",
+    )
 
 
 class RespuestaAPI(BaseModel, Generic[T]):
-    status: str = Field("success", description="Estado de la respuesta: 'success' o 'error'", example="success")
+    status: str = Field(
+        "success", description="Estado de la respuesta: 'success' o 'error'", example="success"
+    )
     data: T | None = Field(None, description="Carga útil principal de la respuesta")
     error: ErrorInfo | None = Field(None, description="Detalles del error si status == 'error'")
-    meta: MetaAPI = Field(default_factory=MetaAPI, description="Metadatos contextuales del servidor y pipeline")
+    meta: MetaAPI = Field(
+        default_factory=MetaAPI, description="Metadatos contextuales del servidor y pipeline"
+    )
 
 
 def _respuesta_exitosa(
@@ -238,7 +286,7 @@ def _respuesta_exitosa(
         "error": None,
         "meta": {
             "api_version": "1.2.0",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "fuente": fuente,
             "total_registros": total_registros,
         },
@@ -271,7 +319,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
             },
             "meta": {
                 "api_version": "1.2.0",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "fuente": None,
                 "total_registros": None,
             },
@@ -283,37 +331,86 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 # Modelos de Datos Internos (Payloads dentro de `data`)
 # ---------------------------------------------------------------------------
 
+
 class ZonaRiesgo(BaseModel):
-    zona_id: str = Field(..., description="Identificador único de la zona o sector urbano", example="ZONA_001")
-    nombre_sector: str | None = Field(None, description="Nombre legible del sector o parroquia", example="Urdesa Central")
-    lat_centroide: float | None = Field(None, description="Latitud del centroide geográfico", example=-2.167)
-    lon_centroide: float | None = Field(None, description="Longitud del centroide geográfico", example=-79.916)
-    indice_riesgo: float = Field(..., description="Índice de riesgo ponderado normalizado (0.0 a 1.0)", example=0.74)
-    nivel_riesgo: str = Field(..., description="Categoría de riesgo: BAJO, MEDIO, ALTO, EXTREMO", example="ALTO")
-    precip_acumulada_24h_mm: float | None = Field(None, description="Precipitación acumulada en las últimas 24h en mm", example=45.5)
-    altura_marea_m: float | None = Field(None, description="Altura de marea astronómica/observada en metros", example=3.85)
-    nivel_embalse_msnm: float | None = Field(None, description="Nivel del embalse Daule-Peripa en msnm", example=84.2)
-    origen_precip: str | None = Field(None, description="Fuente del dato de precipitación (estacion|satelite|respaldo)", example="estacion")
+    zona_id: str = Field(
+        ..., description="Identificador único de la zona o sector urbano", example="ZONA_001"
+    )
+    nombre_sector: str | None = Field(
+        None, description="Nombre legible del sector o parroquia", example="Urdesa Central"
+    )
+    lat_centroide: float | None = Field(
+        None, description="Latitud del centroide geográfico", example=-2.167
+    )
+    lon_centroide: float | None = Field(
+        None, description="Longitud del centroide geográfico", example=-79.916
+    )
+    indice_riesgo: float = Field(
+        ..., description="Índice de riesgo ponderado normalizado (0.0 a 1.0)", example=0.74
+    )
+    nivel_riesgo: str = Field(
+        ..., description="Categoría de riesgo: BAJO, MEDIO, ALTO, EXTREMO", example="ALTO"
+    )
+    precip_acumulada_24h_mm: float | None = Field(
+        None, description="Precipitación acumulada en las últimas 24h en mm", example=45.5
+    )
+    altura_marea_m: float | None = Field(
+        None, description="Altura de marea astronómica/observada en metros", example=3.85
+    )
+    nivel_embalse_msnm: float | None = Field(
+        None, description="Nivel del embalse Daule-Peripa en msnm", example=84.2
+    )
+    origen_precip: str | None = Field(
+        None,
+        description="Fuente del dato de precipitación (estacion|satelite|respaldo)",
+        example="estacion",
+    )
     origen_marea: str | None = Field(None, description="Fuente del dato de marea", example="inocar")
-    origen_embalse: str | None = Field(None, description="Fuente del dato de embalse", example="celec")
+    origen_embalse: str | None = Field(
+        None, description="Fuente del dato de embalse", example="celec"
+    )
     datos_completos: bool | None = Field(
         None,
         description="False si alguna variable utilizó un valor de respaldo por falta de telemetría en vivo.",
         example=True,
     )
-    precip_pronostico_24h_mm: float | None = Field(None, description="Pronóstico de lluvia a 24 horas", example=55.0)
-    marea_observada_m: float | None = Field(None, description="Marea observada en tiempo real", example=3.90)
-    caudal_rio_m3s: float | None = Field(None, description="Caudal estimado del río Guayas en m3/s", example=1250.0)
-    saturacion_antecedente_mm: float | None = Field(None, description="Índice de humedad antecedente del suelo", example=35.2)
-    origen_rio: str | None = Field(None, description="Fuente del dato de caudal", example="geoglows")
-    origen_suelo: str | None = Field(None, description="Fuente del dato de saturación del suelo", example="copernicus")
-    origen_marea_obs: str | None = Field(None, description="Fuente de marea observada", example="inocar_realtime")
-    n_estaciones_precip: int | None = Field(None, description="Número de estaciones meteorológicas interpoladas", example=4)
+    precip_pronostico_24h_mm: float | None = Field(
+        None, description="Pronóstico de lluvia a 24 horas", example=55.0
+    )
+    marea_observada_m: float | None = Field(
+        None, description="Marea observada en tiempo real", example=3.90
+    )
+    caudal_rio_m3s: float | None = Field(
+        None, description="Caudal estimado del río Guayas en m3/s", example=1250.0
+    )
+    saturacion_antecedente_mm: float | None = Field(
+        None, description="Índice de humedad antecedente del suelo", example=35.2
+    )
+    origen_rio: str | None = Field(
+        None, description="Fuente del dato de caudal", example="geoglows"
+    )
+    origen_suelo: str | None = Field(
+        None, description="Fuente del dato de saturación del suelo", example="copernicus"
+    )
+    origen_marea_obs: str | None = Field(
+        None, description="Fuente de marea observada", example="inocar_realtime"
+    )
+    n_estaciones_precip: int | None = Field(
+        None, description="Número de estaciones meteorológicas interpoladas", example=4
+    )
     poblacion: int | None = Field(None, description="Población estimada en la zona", example=15200)
-    exposicion_norm: float | None = Field(None, description="Índice de exposición poblacional/infraestructura (0 a 1)", example=0.68)
-    indice_impacto: float | None = Field(None, description="Índice de impacto estimado (Riesgo × Exposición)", example=0.50)
-    anomalia_nino12_c: float | None = Field(None, description="Anomalía de temperatura superficial del mar Niño 1+2 en °C", example=1.8)
-    origen_enso: str | None = Field(None, description="Fuente del indicador ENSO", example="noaa_sst")
+    exposicion_norm: float | None = Field(
+        None, description="Índice de exposición poblacional/infraestructura (0 a 1)", example=0.68
+    )
+    indice_impacto: float | None = Field(
+        None, description="Índice de impacto estimado (Riesgo × Exposición)", example=0.50
+    )
+    anomalia_nino12_c: float | None = Field(
+        None, description="Anomalía de temperatura superficial del mar Niño 1+2 en °C", example=1.8
+    )
+    origen_enso: str | None = Field(
+        None, description="Fuente del indicador ENSO", example="noaa_sst"
+    )
 
 
 class RespuestaZonas(BaseModel):
@@ -328,39 +425,69 @@ class RespuestaZonas(BaseModel):
 
 
 class ParametrosEscenario(BaseModel):
-    precip_24h_mm: float = Field(..., description="Precipitación simulada en mm acumulados en 24h", example=80.0)
-    altura_marea_m: float = Field(..., description="Altura de marea astronómica simulada en metros", example=4.2)
-    caudal_rio_m3s: float = Field(500.0, description="Caudal del río Guayas simulado en m3/s", example=1800.0)
-    saturacion_antecedente_mm: float = Field(0.0, description="Saturación del suelo antecedente simulada en mm", example=50.0)
-    anomalia_nino12_c: float = Field(0.0, description="Anomalía de TSM en región Niño 1+2 en °C", example=2.5)
+    precip_24h_mm: float = Field(
+        ..., description="Precipitación simulada en mm acumulados en 24h", example=80.0
+    )
+    altura_marea_m: float = Field(
+        ..., description="Altura de marea astronómica simulada en metros", example=4.2
+    )
+    caudal_rio_m3s: float = Field(
+        500.0, description="Caudal del río Guayas simulado en m3/s", example=1800.0
+    )
+    saturacion_antecedente_mm: float = Field(
+        0.0, description="Saturación del suelo antecedente simulada en mm", example=50.0
+    )
+    anomalia_nino12_c: float = Field(
+        0.0, description="Anomalía de TSM en región Niño 1+2 en °C", example=2.5
+    )
 
 
 class RespuestaEscenario(BaseModel):
-    parametros: ParametrosEscenario = Field(..., description="Parámetros hipotéticos introducidos en la simulación")
+    parametros: ParametrosEscenario = Field(
+        ..., description="Parámetros hipotéticos introducidos en la simulación"
+    )
     zonas: list[ZonaRiesgo] = Field(..., description="Evaluación simulada por cada zona urbana")
 
 
 class ZonaPronostico(BaseModel):
     zona_id: str = Field(..., description="Identificador de la zona urbana", example="ZONA_001")
-    nombre_sector: str | None = Field(None, description="Nombre legible del sector", example="Urdesa Central")
+    nombre_sector: str | None = Field(
+        None, description="Nombre legible del sector", example="Urdesa Central"
+    )
     lat_centroide: float | None = Field(None, description="Latitud del centroide", example=-2.167)
     lon_centroide: float | None = Field(None, description="Longitud del centroide", example=-79.916)
-    indice_riesgo: float = Field(..., description="Índice de riesgo proyectado (0.0 a 1.0)", example=0.82)
-    nivel_riesgo: str = Field(..., description="Nivel de riesgo proyectado: BAJO, MEDIO, ALTO, EXTREMO", example="EXTREMO")
-    indice_impacto: float | None = Field(None, description="Índice de impacto estimado", example=0.65)
-    horizonte_h: int = Field(..., description="Horizonte del pronóstico en horas (+24h o +48h)", example=24)
+    indice_riesgo: float = Field(
+        ..., description="Índice de riesgo proyectado (0.0 a 1.0)", example=0.82
+    )
+    nivel_riesgo: str = Field(
+        ..., description="Nivel de riesgo proyectado: BAJO, MEDIO, ALTO, EXTREMO", example="EXTREMO"
+    )
+    indice_impacto: float | None = Field(
+        None, description="Índice de impacto estimado", example=0.65
+    )
+    horizonte_h: int = Field(
+        ..., description="Horizonte del pronóstico en horas (+24h o +48h)", example=24
+    )
 
 
 class RespuestaPronostico(BaseModel):
-    horizonte_h: int = Field(..., description="Horizonte temporal del pronóstico (+24h/+48h)", example=24)
+    horizonte_h: int = Field(
+        ..., description="Horizonte temporal del pronóstico (+24h/+48h)", example=24
+    )
     zonas: list[ZonaPronostico] = Field(..., description="Resultados proyectados por zona urbana")
 
 
 class ClimaPuntoResponse(BaseModel):
-    temperatura_c: float | None = Field(None, description="Temperatura ambiente en °C", example=28.5)
-    humedad_pct: float | None = Field(None, description="Humedad relativa en porcentaje (%)", example=82.0)
+    temperatura_c: float | None = Field(
+        None, description="Temperatura ambiente en °C", example=28.5
+    )
+    humedad_pct: float | None = Field(
+        None, description="Humedad relativa en porcentaje (%)", example=82.0
+    )
     viento_ms: float | None = Field(None, description="Velocidad del viento en m/s", example=3.4)
-    descripcion: str | None = Field(None, description="Descripción meteorológica en español", example="lluvia moderada")
+    descripcion: str | None = Field(
+        None, description="Descripción meteorológica en español", example="lluvia moderada"
+    )
 
 
 class Salud(BaseModel):
@@ -370,6 +497,7 @@ class Salud(BaseModel):
 # ---------------------------------------------------------------------------
 # Utilidades de HDFS y Caché
 # ---------------------------------------------------------------------------
+
 
 def _client():
     return get_client(WEBHDFS_URL, HDFS_USER)
@@ -413,6 +541,7 @@ def _ultimo_por_zona(df):
 # Endpoints
 # ---------------------------------------------------------------------------
 
+
 @app.get(
     "/api/salud",
     response_model=RespuestaAPI[Salud],
@@ -436,7 +565,10 @@ def salud():
     ),
     response_description="Lista de zonas urbanas envuelta en el formato RespuestaAPI.",
     responses={
-        404: {"model": RespuestaAPI[None], "description": "Sin particiones o datos de riesgo en HDFS."},
+        404: {
+            "model": RespuestaAPI[None],
+            "description": "Sin particiones o datos de riesgo en HDFS.",
+        },
         503: {"model": RespuestaAPI[None], "description": "Servidor WebHDFS inalcanzable."},
     },
 )
@@ -474,12 +606,17 @@ def riesgo_zonas_actual():
     ),
     response_description="Serie de tiempo envuelta en RespuestaAPI.",
     responses={
-        404: {"model": RespuestaAPI[None], "description": "Zona no encontrada o sin registros en el rango."},
+        404: {
+            "model": RespuestaAPI[None],
+            "description": "Zona no encontrada o sin registros en el rango.",
+        },
         503: {"model": RespuestaAPI[None], "description": "Error al comunicarse con HDFS."},
     },
 )
 def riesgo_zona_historico(
-    zona_id: str = Path(..., description="Identificador único de la zona (ej: ZONA_001)", example="ZONA_001"),
+    zona_id: str = Path(
+        ..., description="Identificador único de la zona (ej: ZONA_001)", example="ZONA_001"
+    ),
     desde: date | None = Query(
         None,
         description="Fecha inicial de la consulta (YYYY-MM-DD)",
@@ -497,7 +634,8 @@ def riesgo_zona_historico(
     ruta_hdfs = f"{HDFS_BASE}/processed/indice_riesgo"
     try:
         df = read_all_partitions_parquet(
-            _client(), ruta_hdfs,
+            _client(),
+            ruta_hdfs,
             desde=desde.isoformat() if desde else None,
             hasta=hasta.isoformat() if hasta else None,
             max_particiones=max_dias,
@@ -568,7 +706,7 @@ def estado_enso():
 @app.get(
     "/api/mareas/actual",
     response_model=RespuestaAPI[dict[str, Any]],
-    tags=["hidrologia_clima"],
+    tags=["hidrologia"],
     summary="Última marea astronómica (INOCAR)",
     description="Retorna la lectura de marea en vivo o astronómica predicha por INOCAR.",
     response_description="Última medición de nivel de marea envuelta en RespuestaAPI.",
@@ -585,7 +723,7 @@ def marea_actual():
 @app.get(
     "/api/embalse/actual",
     response_model=RespuestaAPI[dict[str, Any]],
-    tags=["hidrologia_clima"],
+    tags=["hidrologia"],
     summary="Nivel del embalse Daule-Peripa (CELEC)",
     description="Obtiene la cota actual en msnm de la represa Daule-Peripa.",
     response_description="Nivel actual del embalse envuelto en RespuestaAPI.",
@@ -611,7 +749,9 @@ def embalse_actual():
     },
 )
 def alertas_recientes(
-    limite: int = Query(20, ge=1, le=200, description="Cantidad máxima de alertas a retornar", example=20)
+    limite: int = Query(
+        20, ge=1, le=200, description="Cantidad máxima de alertas a retornar", example=20
+    ),
 ):
     ruta_hdfs = f"{HDFS_BASE}/raw/sngr_alertas"
     try:
@@ -625,9 +765,7 @@ def alertas_recientes(
         return _respuesta_exitosa([], fuente=ruta_hdfs)
 
     alertas = (
-        df.sort_values("kafka_timestamp", ascending=False)
-        .head(limite)
-        .to_dict(orient="records")
+        df.sort_values("kafka_timestamp", ascending=False).head(limite).to_dict(orient="records")
     )
     return _respuesta_exitosa(alertas, fuente=ruta_hdfs)
 
@@ -644,11 +782,21 @@ def alertas_recientes(
     response_description="Escenario recalculado dinámicamente envuelto en RespuestaAPI.",
 )
 def simular_escenario(
-    precip_24h_mm: float = Query(..., ge=0, description="Lluvia acumulada hipotética (mm)", example=60.0),
-    altura_marea_m: float = Query(..., ge=0, description="Altura de marea hipotética (m)", example=4.0),
-    caudal_rio_m3s: float = Query(500.0, ge=0, description="Caudal del río Guayas (m3/s)", example=1200.0),
-    saturacion_antecedente_mm: float = Query(0.0, ge=0, description="Saturación del suelo (mm)", example=40.0),
-    anomalia_nino12_c: float = Query(0.0, description="Anomalía de temperatura SST Niño 1+2 (°C)", example=2.0),
+    precip_24h_mm: float = Query(
+        ..., ge=0, description="Lluvia acumulada hipotética (mm)", example=60.0
+    ),
+    altura_marea_m: float = Query(
+        ..., ge=0, description="Altura de marea hipotética (m)", example=4.0
+    ),
+    caudal_rio_m3s: float = Query(
+        500.0, ge=0, description="Caudal del río Guayas (m3/s)", example=1200.0
+    ),
+    saturacion_antecedente_mm: float = Query(
+        0.0, ge=0, description="Saturación del suelo (mm)", example=40.0
+    ),
+    anomalia_nino12_c: float = Query(
+        0.0, description="Anomalía de temperatura SST Niño 1+2 (°C)", example=2.0
+    ),
 ):
     zonas = []
     for fila in _zonas_referencia():
@@ -659,31 +807,31 @@ def simular_escenario(
             cota_media_msnm=float(fila["cota_media_msnm"]),
             pendiente_clase=fila["pendiente_clase"],
             cercania_estero_m=float(fila["cercania_estero_m"]),
-            historicamente_inundable=(
-                fila["historicamente_inundable"].lower() == "true"
-            ),
+            historicamente_inundable=(fila["historicamente_inundable"].lower() == "true"),
             caudal_rio_m3s=caudal_rio_m3s,
             saturacion_antecedente_mm=saturacion_antecedente_mm,
             anomalia_nino12_c=anomalia_nino12_c,
             poblacion=poblacion,
         )
-        zonas.append({
-            "zona_id": fila["zona_id"],
-            "nombre_sector": fila["nombre_sector"],
-            "lat_centroide": float(fila["lat_centroide"]),
-            "lon_centroide": float(fila["lon_centroide"]),
-            "precip_acumulada_24h_mm": precip_24h_mm,
-            "altura_marea_m": altura_marea_m,
-            "caudal_rio_m3s": caudal_rio_m3s,
-            "saturacion_antecedente_mm": saturacion_antecedente_mm,
-            "anomalia_nino12_c": anomalia_nino12_c,
-            "poblacion": poblacion,
-            "exposicion_norm": resultado["exposicion_norm"],
-            "indice_impacto": resultado["indice_impacto"],
-            "indice_riesgo": resultado["indice_riesgo"],
-            "nivel_riesgo": resultado["nivel_riesgo"],
-            "datos_completos": True,
-        })
+        zonas.append(
+            {
+                "zona_id": fila["zona_id"],
+                "nombre_sector": fila["nombre_sector"],
+                "lat_centroide": float(fila["lat_centroide"]),
+                "lon_centroide": float(fila["lon_centroide"]),
+                "precip_acumulada_24h_mm": precip_24h_mm,
+                "altura_marea_m": altura_marea_m,
+                "caudal_rio_m3s": caudal_rio_m3s,
+                "saturacion_antecedente_mm": saturacion_antecedente_mm,
+                "anomalia_nino12_c": anomalia_nino12_c,
+                "poblacion": poblacion,
+                "exposicion_norm": resultado["exposicion_norm"],
+                "indice_impacto": resultado["indice_impacto"],
+                "indice_riesgo": resultado["indice_riesgo"],
+                "nivel_riesgo": resultado["nivel_riesgo"],
+                "datos_completos": True,
+            }
+        )
 
     payload = {
         "parametros": {
@@ -707,7 +855,9 @@ def simular_escenario(
     response_description="Pronóstico por zonas para el horizonte seleccionado envuelto en RespuestaAPI.",
 )
 def pronostico_riesgo(
-    horizonte_h: int = Query(24, ge=12, le=72, description="Horizonte proyectado en horas (24 o 48)", example=24)
+    horizonte_h: int = Query(
+        24, ge=12, le=72, description="Horizonte proyectado en horas (24 o 48)", example=24
+    ),
 ):
     zonas = []
     precip_futura = 35.0 if horizonte_h == 24 else 60.0
@@ -721,21 +871,21 @@ def pronostico_riesgo(
             cota_media_msnm=float(fila["cota_media_msnm"]),
             pendiente_clase=fila["pendiente_clase"],
             cercania_estero_m=float(fila["cercania_estero_m"]),
-            historicamente_inundable=(
-                fila["historicamente_inundable"].lower() == "true"
-            ),
+            historicamente_inundable=(fila["historicamente_inundable"].lower() == "true"),
             poblacion=poblacion,
         )
-        zonas.append({
-            "zona_id": fila["zona_id"],
-            "nombre_sector": fila["nombre_sector"],
-            "lat_centroide": float(fila["lat_centroide"]),
-            "lon_centroide": float(fila["lon_centroide"]),
-            "indice_riesgo": res["indice_riesgo"],
-            "nivel_riesgo": res["nivel_riesgo"],
-            "indice_impacto": res["indice_impacto"],
-            "horizonte_h": horizonte_h,
-        })
+        zonas.append(
+            {
+                "zona_id": fila["zona_id"],
+                "nombre_sector": fila["nombre_sector"],
+                "lat_centroide": float(fila["lat_centroide"]),
+                "lon_centroide": float(fila["lon_centroide"]),
+                "indice_riesgo": res["indice_riesgo"],
+                "nivel_riesgo": res["nivel_riesgo"],
+                "indice_impacto": res["indice_impacto"],
+                "horizonte_h": horizonte_h,
+            }
+        )
     payload = {"horizonte_h": horizonte_h, "zonas": zonas}
     return _respuesta_exitosa(payload, fuente="modelo_pronostico_precip")
 
@@ -743,18 +893,23 @@ def pronostico_riesgo(
 @app.get(
     "/api/clima/punto",
     response_model=RespuestaAPI[ClimaPuntoResponse],
-    tags=["hidrologia_clima"],
+    tags=["clima_proxy"],
     summary="Proxy de clima puntual (OpenWeatherMap)",
     description="Consulta la temperatura, humedad y estado del clima en vivo para cualquier coordenada puntual.",
     response_description="Resumen de condiciones meteorológicas envuelto en RespuestaAPI.",
     responses={
-        502: {"model": RespuestaAPI[None], "description": "Error o falla en la respuesta de OpenWeatherMap."},
+        502: {
+            "model": RespuestaAPI[None],
+            "description": "Error o falla en la respuesta de OpenWeatherMap.",
+        },
         503: {"model": RespuestaAPI[None], "description": "OPENWEATHERMAP_API_KEY no configurada."},
     },
 )
 def clima_punto(
     lat: float = Query(..., ge=-90, le=90, description="Latitud de la ubicación", example=-2.167),
-    lon: float = Query(..., ge=-180, le=180, description="Longitud de la ubicación", example=-79.916),
+    lon: float = Query(
+        ..., ge=-180, le=180, description="Longitud de la ubicación", example=-79.916
+    ),
 ):
     if not OPENWEATHERMAP_API_KEY:
         raise HTTPException(
@@ -778,7 +933,8 @@ def clima_punto(
     except requests.RequestException as error:
         logger.warning("OpenWeatherMap no respondió: %s", error)
         raise HTTPException(
-            status_code=502, detail="OpenWeatherMap no disponible",
+            status_code=502,
+            detail="OpenWeatherMap no disponible",
         ) from error
 
     datos = respuesta.json()
@@ -796,19 +952,26 @@ CAPAS_TILES_OWM = {"precipitation_new", "clouds_new"}
 
 @app.get(
     "/api/clima/tiles/{capa}/{z}/{x}/{y}.png",
-    tags=["hidrologia_clima"],
+    tags=["clima_proxy"],
     summary="Proxy de tiles raster meteorológicos",
     description="Retorna una imagen PNG con la capa de precipitación o nubes para mapas interactivos (MapLibre/Leaflet).",
     response_description="Imagen PNG del tile solicitado.",
     responses={
         400: {"model": RespuestaAPI[None], "description": "Nivel de zoom fuera de rango (0-20)."},
         404: {"model": RespuestaAPI[None], "description": "Capa no reconocida."},
-        502: {"model": RespuestaAPI[None], "description": "Error al consultar tile de OpenWeatherMap."},
+        502: {
+            "model": RespuestaAPI[None],
+            "description": "Error al consultar tile de OpenWeatherMap.",
+        },
         503: {"model": RespuestaAPI[None], "description": "OPENWEATHERMAP_API_KEY no configurada."},
     },
 )
 def clima_tile(
-    capa: str = Path(..., description="Nombre de la capa raster (precipitation_new|clouds_new)", example="precipitation_new"),
+    capa: str = Path(
+        ...,
+        description="Nombre de la capa raster (precipitation_new|clouds_new)",
+        example="precipitation_new",
+    ),
     z: int = Path(..., description="Nivel de zoom (0 a 20)", example=10),
     x: int = Path(..., description="Coordenada X del tile", example=284),
     y: int = Path(..., description="Coordenada Y del tile", example=514),
@@ -833,7 +996,8 @@ def clima_tile(
     except requests.RequestException as error:
         logger.warning("tile %s/%s/%s/%s no disponible: %s", capa, z, x, y, error)
         raise HTTPException(
-            status_code=502, detail="OpenWeatherMap no disponible",
+            status_code=502,
+            detail="OpenWeatherMap no disponible",
         ) from error
 
     return Response(
@@ -847,14 +1011,18 @@ def clima_tile(
 # Endpoints Normalizados REST para Fuentes HDFS
 # ---------------------------------------------------------------------------
 
+
 def _leer_capa_seguraep(filename: str, descripcion_error: str):
     hdfs_path = f"{HDFS_BASE}/raw/seguraep/{filename}"
     try:
         with _client().read(hdfs_path) as reader:
             obj = json.load(reader)
             return _respuesta_exitosa(obj, fuente=hdfs_path)
-    except HdfsError as error:
+    except HdfsError:
         raise _sin_datos(descripcion_error) from None
+
+
+DatoTelemetriaRaw = dict[str, Any] | list[Any]
 
 
 def _leer_telemetria_raw(fuente: str, descripcion_error: str):
@@ -865,16 +1033,14 @@ def _leer_telemetria_raw(fuente: str, descripcion_error: str):
         raise HTTPException(status_code=500, detail=f"Dato de {fuente} corrupto en HDFS") from error
 
     if isinstance(obj, dict) and "data" in obj:
-        if isinstance(obj["data"], dict) and "features" in obj["data"]:
-            return _respuesta_exitosa(obj["data"], fuente=ruta)
         return _respuesta_exitosa(obj["data"], fuente=ruta)
     return _respuesta_exitosa(obj, fuente=ruta)
 
 
 @app.get(
     "/api/clima/gee",
-    response_model=RespuestaAPI[dict[str, Any]],
-    tags=["hidrologia_clima"],
+    response_model=RespuestaAPI[DatoTelemetriaRaw],
+    tags=["clima"],
     summary="Datos satelitales Google Earth Engine (CHIRPS / GPM)",
     description="Obtiene la última lectura de precipitación satelital calculada desde GEE.",
     response_description="Objeto JSON con datos satelitales envuelto en RespuestaAPI.",
@@ -885,8 +1051,8 @@ def clima_gee():
 
 @app.get(
     "/api/clima/open-meteo",
-    response_model=RespuestaAPI[dict[str, Any]],
-    tags=["hidrologia_clima"],
+    response_model=RespuestaAPI[DatoTelemetriaRaw],
+    tags=["clima"],
     summary="Pronóstico climático horario (Open-Meteo)",
     description="Retorna la última predicción horaria de precipitación y humedad de Open-Meteo.",
     response_description="Pronóstico horario envuelto en RespuestaAPI.",
@@ -897,8 +1063,8 @@ def clima_open_meteo():
 
 @app.get(
     "/api/clima/nasa-power",
-    response_model=RespuestaAPI[dict[str, Any]],
-    tags=["hidrologia_clima"],
+    response_model=RespuestaAPI[DatoTelemetriaRaw],
+    tags=["clima"],
     summary="Parámetros agrometeorológicos (NASA POWER)",
     description="Obtiene radiación solar, humedad y viento desde la API de NASA POWER.",
     response_description="Datos meteorológicos NASA POWER envueltos en RespuestaAPI.",
@@ -909,7 +1075,7 @@ def clima_nasa_power():
 
 @app.get(
     "/api/enso/indices",
-    response_model=RespuestaAPI[dict[str, Any]],
+    response_model=RespuestaAPI[DatoTelemetriaRaw],
     tags=["enso"],
     summary="Índices ENSO macro (Niño 1+2, ONI, SOI)",
     description="Obtiene la serie temporal de índices macroclimáticos de El Niño Oscilación del Sur.",
@@ -922,7 +1088,7 @@ def enso_indices():
 @app.get(
     "/api/clima/inamhi",
     response_model=RespuestaAPI[dict[str, Any]],
-    tags=["hidrologia_clima"],
+    tags=["clima"],
     summary="Boletín de pronóstico oficial (INAMHI)",
     description="Retorna las alertas y temperaturas estimadas por INAMHI para Guayaquil.",
     response_description="Boletín INAMHI envuelto en RespuestaAPI.",
@@ -933,8 +1099,8 @@ def clima_inamhi():
 
 @app.get(
     "/api/clima/openweathermap",
-    response_model=RespuestaAPI[dict[str, Any]],
-    tags=["hidrologia_clima"],
+    response_model=RespuestaAPI[DatoTelemetriaRaw],
+    tags=["clima"],
     summary="Condiciones meteorológicas en tiempo real (OpenWeatherMap)",
     description="Obtiene temperatura actual, humedad y nubosidad para Guayaquil.",
     response_description="Clima actual envuelto en RespuestaAPI.",
@@ -958,7 +1124,7 @@ def eventos_sgr():
 @app.get(
     "/api/boyas/ndbc",
     response_model=RespuestaAPI[dict[str, Any]],
-    tags=["hidrologia_clima"],
+    tags=["clima"],
     summary="Telemetría de boyas oceánicas (NOAA NDBC)",
     description="Obtiene observaciones mar adentro de boyas meteorológicas del Pacífico Este.",
     response_description="Datos de boyas envueltos en RespuestaAPI.",
@@ -970,7 +1136,7 @@ def boyas_ndbc():
 @app.get(
     "/api/hidrologia/geoglows",
     response_model=RespuestaAPI[dict[str, Any]],
-    tags=["hidrologia_clima"],
+    tags=["hidrologia"],
     summary="Caudales de la Cuenca del Guayas (GEOGLOWS ECMWF)",
     description="Obtiene la estimación de caudal simulado del Río Guayas y tributarios principales.",
     response_description="Caudal de ríos envuelto en RespuestaAPI.",
@@ -1000,7 +1166,9 @@ def capas_guayas_osm():
     response_description="GeoJSON FeatureCollection de parroquias envuelto en RespuestaAPI.",
 )
 def capas_parroquias():
-    return _leer_capa_seguraep("sgr_parroquias_guayaquil.geojson", "Sin capa de parroquias de Guayaquil")
+    return _leer_capa_seguraep(
+        "sgr_parroquias_guayaquil.geojson", "Sin capa de parroquias de Guayaquil"
+    )
 
 
 @app.get(
@@ -1060,4 +1228,6 @@ def capas_vias_inundables():
     response_description="GeoJSON FeatureCollection de vías vulnerables por marea envuelto en RespuestaAPI.",
 )
 def capas_vias_vulnerables_marea():
-    return _leer_capa_seguraep("sgr_vias_vulnerables_marea_alta.geojson", "Sin vías vulnerables por marea")
+    return _leer_capa_seguraep(
+        "sgr_vias_vulnerables_marea_alta.geojson", "Sin vías vulnerables por marea"
+    )

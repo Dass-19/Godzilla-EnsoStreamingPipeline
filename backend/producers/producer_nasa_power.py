@@ -4,9 +4,7 @@ Descarga datos meteorológicos y de radiación para medir impactos locales de El
 Variables: Temperatura, Precipitación, Vientos, Presión y Radiación Solar en Guayaquil.
 """
 
-
 import datetime
-from datetime import timezone
 import os
 
 import requests
@@ -26,7 +24,7 @@ VENTANA_DIAS = int(os.environ.get("VENTANA_DIAS_CLIMA", 15))
 
 
 def _ventana_fechas():
-    hoy = datetime.datetime.now(timezone.utc).date()
+    hoy = datetime.datetime.now(datetime.UTC).date()
     desde = hoy - datetime.timedelta(days=VENTANA_DIAS)
     return desde.strftime("%Y%m%d"), hoy.strftime("%Y%m%d")
 
@@ -35,7 +33,15 @@ def test_connection():
     print("[*] Probando conexión con NASA POWER...")
     try:
         inicio, fin = _ventana_fechas()
-        params = {"parameters": "T2M", "community": "AG", "longitude": LONGITUD_GUAYAQUIL, "latitude": LATITUD_GUAYAQUIL, "start": inicio, "end": fin, "format": "JSON"}
+        params = {
+            "parameters": "T2M",
+            "community": "AG",
+            "longitude": LONGITUD_GUAYAQUIL,
+            "latitude": LATITUD_GUAYAQUIL,
+            "start": inicio,
+            "end": fin,
+            "format": "JSON",
+        }
         response = requests.get(ENDPOINT, params=params, timeout=10)
         if response.status_code == 200:
             print("[+] Conexión exitosa con NASA POWER (Status 200)")
@@ -46,6 +52,7 @@ def test_connection():
     except Exception as e:
         print(f"[-] Fallo de conexión con NASA POWER: {e}")
         return False
+
 
 def ingest_data():
     print("[*] Descargando datos de impactos locales de El Niño desde NASA POWER...")
@@ -59,7 +66,7 @@ def ingest_data():
         "latitude": LATITUD_GUAYAQUIL,
         "start": inicio,
         "end": fin,
-        "format": "JSON"
+        "format": "JSON",
     }
     try:
         response = requests.get(ENDPOINT, params=params, timeout=15)
@@ -75,15 +82,19 @@ def ingest_data():
                 for date_str, t2m_val in params_data["T2M"].items():
                     # El shape de este registro lo define `contracts`: es la
                     # fuente de la que Spark saca `precip_24h_mm` del índice.
-                    records.append(construir_precipitacion_diaria(
-                        fecha=date_str,
-                        precipitacion_mm=params_data.get("PRECTOTCORR", {}).get(date_str, -999),
-                        temperature_2m_C=t2m_val,
-                        wind_speed_10m_ms=params_data.get("WS10M", {}).get(date_str, -999),
-                        wind_direction_10m_deg=params_data.get("WD10M", {}).get(date_str, -999),
-                        solar_radiation_MJ_m2=params_data.get("ALLSKY_SFC_SW_DWN", {}).get(date_str, -999),
-                        surface_pressure_kPa=params_data.get("PS", {}).get(date_str, -999),
-                    ))
+                    records.append(
+                        construir_precipitacion_diaria(
+                            fecha=date_str,
+                            precipitacion_mm=params_data.get("PRECTOTCORR", {}).get(date_str, -999),
+                            temperature_2m_C=t2m_val,
+                            wind_speed_10m_ms=params_data.get("WS10M", {}).get(date_str, -999),
+                            wind_direction_10m_deg=params_data.get("WD10M", {}).get(date_str, -999),
+                            solar_radiation_MJ_m2=params_data.get("ALLSKY_SFC_SW_DWN", {}).get(
+                                date_str, -999
+                            ),
+                            surface_pressure_kPa=params_data.get("PS", {}).get(date_str, -999),
+                        )
+                    )
 
         return {
             "metadata": {
@@ -96,11 +107,11 @@ def ingest_data():
                     "WS10M (Velocidad del Viento)",
                     "WD10M (Dirección del Viento)",
                     "ALLSKY_SFC_SW_DWN (Radiación Solar / Nubosidad)",
-                    "PS (Presión Atmosférica Superficial)"
+                    "PS (Presión Atmosférica Superficial)",
                 ],
-                "timestamp": datetime.datetime.now(datetime.UTC).isoformat()
+                "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
             },
-            "data": records
+            "data": records,
         }
     except Exception as e:
         print(f"[-] Error al descargar/procesar datos de NASA POWER: {e}")
@@ -109,12 +120,15 @@ def ingest_data():
 
 def run_producer():
     producer = build_producer()
+
     def _fetch():
         data = ingest_data()
         if data:
             return [data]
         return []
+
     run_loop(producer, "nasa-power-data", _fetch, interval_seconds=INTERVAL_SECONDS)
+
 
 if __name__ == "__main__":
     run_producer()

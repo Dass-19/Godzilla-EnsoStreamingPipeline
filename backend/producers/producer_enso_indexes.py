@@ -3,7 +3,6 @@ Script de Ingesta para Índices Macro-Climáticos ENSO.
 Descarga Presión a Nivel del Mar de Tahití y Darwin para calcular un proxy del SOI.
 """
 
-
 import datetime
 import os
 
@@ -15,6 +14,7 @@ INTERVAL_SECONDS = int(os.environ.get("INTERVALO_INDICES", 60 * 60))
 # Coordenadas exactas
 TAHITI = {"lat": -17.65, "lon": -149.46}
 DARWIN = {"lat": -12.46, "lon": 130.84}
+
 
 def fetch_pressure(lat, lon):
     url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=surface_pressure,pressure_msl&timezone=UTC"
@@ -48,32 +48,35 @@ def ingest_data():
         status = "Fase Neutra"
 
     record = {
-        "date": datetime.datetime.now(datetime.UTC).strftime('%Y-%m-%d'),
+        "date": datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d"),
         "tahiti_mslp_hpa": tahiti_mslp,
         "darwin_mslp_hpa": darwin_mslp,
         "soi_proxy_diff": soi_proxy,
-        "enso_status": status
+        "enso_status": status,
     }
 
     payload = {
         "metadata": {
             "source": "Open-Meteo (Forecast API)",
             "description": "Southern Oscillation Index (Proxy)",
-            "timestamp": datetime.datetime.now(datetime.UTC).isoformat()
+            "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
         },
-        "data": [record]
+        "data": [record],
     }
     return payload
 
 
 def run_producer():
     producer = build_producer()
+
     def _fetch():
         data = ingest_data()
         if data:
             return [data]
         return []
+
     run_loop(producer, "enso-indexes", _fetch, interval_seconds=INTERVAL_SECONDS)
+
 
 if __name__ == "__main__":
     run_producer()

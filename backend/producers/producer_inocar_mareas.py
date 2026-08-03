@@ -29,8 +29,7 @@ TOPIC = "mareas-inocar"
 INTERVAL_SECONDS = int(os.environ.get("INTERVALO_MAREAS", 15 * 60))
 
 PDF_URL_TEMPLATE = (
-    "https://www.inocar.mil.ec/mareas/TM/{anio}/trimestral/"
-    "GUAYAQUIL_RIO_{trimestre}.pdf"
+    "https://www.inocar.mil.ec/mareas/TM/{anio}/trimestral/GUAYAQUIL_RIO_{trimestre}.pdf"
 )
 MESES_POR_TRIMESTRE = {
     1: ["ENERO", "FEBRERO", "MARZO"],
@@ -113,7 +112,7 @@ def _parsear_eventos(texto: str, anio: int, trimestre: int):
 
         for columna in range(min(grupos, 6)):
             inicio = columna * 3
-            token_1, token_2, token_3 = tokens[inicio:inicio + 3]
+            token_1, token_2, token_3 = tokens[inicio : inicio + 3]
 
             if token_1.isdigit():
                 dias_actuales[columna] = int(token_1)
@@ -173,29 +172,25 @@ def _interpolar_altura(eventos, ahora: datetime):
 
 def _modelo_armonico_fallback() -> list[dict]:
     ahora = datetime.now(UTC)
-    horas = (
-        ahora - datetime(1970, 1, 1, tzinfo=UTC)
-    ).total_seconds() / 3600.0
+    horas = (ahora - datetime(1970, 1, 1, tzinfo=UTC)).total_seconds() / 3600.0
 
     def _altura(horas_relativas: float) -> float:
-        m2 = AMPLITUD_M2_M * math.sin(
-            2 * math.pi * horas_relativas / PERIODO_M2_H
-        )
-        s2 = AMPLITUD_S2_M * math.sin(
-            2 * math.pi * horas_relativas / PERIODO_S2_H
-        )
+        m2 = AMPLITUD_M2_M * math.sin(2 * math.pi * horas_relativas / PERIODO_M2_H)
+        s2 = AMPLITUD_S2_M * math.sin(2 * math.pi * horas_relativas / PERIODO_S2_H)
         return NIVEL_MEDIO_M + m2 + s2
 
     altura = _altura(horas)
     altura_en_1h = _altura(horas + 1)
     tendencia = "subiendo" if altura_en_1h > altura else "bajando"
 
-    return [construir_marea(
-        altura_m=altura,
-        tendencia=tendencia,
-        pleamar=altura >= (NIVEL_MEDIO_M + 1.0),
-        fuente="modelo_armonico_fallback",
-    )]
+    return [
+        construir_marea(
+            altura_m=altura,
+            tendencia=tendencia,
+            pleamar=altura >= (NIVEL_MEDIO_M + 1.0),
+            fuente="modelo_armonico_fallback",
+        )
+    ]
 
 
 def _iterar_trimestres_desde(anio_inicio: int = 2022):
@@ -213,12 +208,14 @@ def cargar_historico(anio_inicio: int = 2022) -> list[dict]:
             pdf_bytes = _descargar_pdf(anio, trimestre)
             texto = _extraer_texto(pdf_bytes)
             for _fecha, altura in _parsear_eventos(texto, anio, trimestre):
-                eventos.append({
-                    "fuente": "INOCAR_pdf",
-                    "anio": anio,
-                    "trimestre": trimestre,
-                    "altura_marea_m": round(altura, 3),
-                })
+                eventos.append(
+                    {
+                        "fuente": "INOCAR_pdf",
+                        "anio": anio,
+                        "trimestre": trimestre,
+                        "altura_marea_m": round(altura, 3),
+                    }
+                )
         except Exception as error:
             print(f"[salta] {anio}-T{trimestre}: {error}")
 
@@ -250,12 +247,14 @@ def fetch_marea() -> list[dict]:
         t1, h1 = resultado["evento_siguiente"]
         es_pleamar = altura >= max(h0, h1) - 0.3
 
-        return [construir_marea(
-            altura_m=altura,
-            tendencia=resultado["tendencia"],
-            pleamar=es_pleamar,
-            fuente="INOCAR_pdf",
-        )]
+        return [
+            construir_marea(
+                altura_m=altura,
+                tendencia=resultado["tendencia"],
+                pleamar=es_pleamar,
+                fuente="INOCAR_pdf",
+            )
+        ]
     except Exception:
         return _modelo_armonico_fallback()
 
