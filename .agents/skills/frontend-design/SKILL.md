@@ -1,76 +1,84 @@
 ---
 name: frontend-design
-description: 'Use this skill when designing or implementing frontend UI components, dashboards, data visualizations, GIS map controls, visual hierarchies, color systems, or user interaction flows for web applications. Trigger phrases: "design a dashboard", "improve UI layout", "frontend design", "map visual hierarchy", "component structure", "dashboard UX".'
+description: 'Use this skill when designing or implementing frontend UI components, dashboards, map layers/popups, or new sidebar cards for frontend/. Covers the verified color palette, the dashboard-sidebar/map-canvas layout, the no-build-step ES module convention, and the mandatory cache-busting rule. Trigger phrases: "design a dashboard", "improve UI layout", "frontend design", "map visual hierarchy", "component structure", "dashboard UX".'
 ---
 
 # Frontend & Dashboard Design System
 
 ## Overview
-This skill provides guidelines for designing and building data-dense, real-time web applications and GIS dashboards. It combines modern UI aesthetics (dark mode, glassmorphism, harmonious color tokens) with efficient information architecture (Level-of-Detail zooming, non-cluttered map layers, and actionable metrics).
+`frontend/` is plain HTML/CSS/JS — **no build step, no package manager**. MapLibre GL, Chart.js and Turf
+come from CDN with pinned versions and SRI `integrity` hashes. It's served as static files by the API
+itself at `/dashboard` (the API root `/` does not serve it). `CONFIG` in
+[js/config.js](../../../frontend/js/config.js) holds shared constants (`API_BASE: "/api/"`, map centers,
+`REFRESH_RATE_MS`) and DOM-safe helpers (`setText`, `spanTexto`) — third-party data goes through those
+(`textContent`/`createElement`), **never interpolated into `innerHTML`**.
 
 ---
 
-## 1. Visual Hierarchy & Dashboard Architecture
+## 1. Layout, as it actually exists in `index.html`
 
-### Layout Pattern (F-Pattern / Hybrid Canvas)
-- **Top Bar / View Pill**: Global controls, view toggles (Regional vs. Local), and macro status indicators.
-- **Center Canvas**: Interactive Map/Visualization taking 100% of viewport.
-- **Left Sidebar**: Scrollable container holding hierarchical metric cards:
-  - **Level 1 (Headline KPIs)**: Large numbers for primary risk/status metrics.
-  - **Level 2 (Contextual Cards)**: Sector-level breakdowns, environmental gauges, forecast cards.
-  - **Level 3 (Action / Interactive)**: What-If simulation controls, evacuation routing, historical time-series modal.
-- **Floating Overlays**: Translucent layer controls and legends placed at map corners (`backdrop-filter: blur(12px)`).
+- **`#view-toggle-pill`**: global view switch (`🌍 Vista Regional` / `🏙️ Vista Local`) plus, since the
+  parroquia-focus feature, a `<select id="select-parroquia">` to fly the map to a specific parish/sector.
+- **Map canvas**: MapLibre fills the rest of the viewport, managed by
+  [js/map/map-manager.js](../../../frontend/js/map/map-manager.js).
+- **`#dashboard-sidebar`**: scrollable column of `<section class="card">` blocks — one per topic
+  (`sst-card`, `macro-card`, `meteo-card`, `inamhi-card`, `embalse-card`, `pronostico-card`,
+  `hidrologia-card`, `simulador-card`, …). Adding a new metric group means adding a new `.card` section
+  here plus the JS that populates it, following the existing cards as the template — don't invent a new
+  layout primitive for one more metric.
+- **Floating layer controls**: translucent panels at the map corners using `backdrop-filter: blur(...)`
+  (verified in `styles.css`: `blur(10px)`, `blur(12px)`, `blur(16px)` depending on panel prominence).
 
----
+## 2. Verified color tokens (from `styles.css` and the JS that sets inline colors)
 
-## 2. GIS & Map Visualization (Level-of-Detail Strategy)
+- **Background**: `#0f172a`. **Text primary**: `#f8fafc`. **Text secondary**: `#94a3b8`.
+- **Risk/severity**: alto/crítico `#ef4444` (with `#dc2626` for a darker/gradient variant), medio
+  `#facc15`, bajo/seguro `#4ade80`.
+- **Hydro/marine accents**: `#38bdf8` (sky), `#60a5fa` (blue), `#818cf8` (indigo, used in the header
+  gradient with `#38bdf8`).
 
-To avoid visual clutter when displaying multiple geographic layers (e.g., Parishes, Sectors, Risk Polygons, Flooded Streets):
+These are grep-verified against `styles.css` and `frontend/js/**/*.js` inline styles — reuse them for any
+new card or layer rather than picking new hex values, so the dashboard reads as one system.
 
-### Zoom-Based Layer Visibility (LOD)
-| Zoom Level | Target Granularity | Visible Features | Visual Treatment |
-|---|---|---|---|
-| **Zoom 10 – 12** | **Parroquias / Cantón** | Parroquias urbanas/rurales (polígonos agrupados) | Coropleta suave con relleno transparente (opacidad 0.25) |
-| **Zoom 13 – 14** | **Sectores / Zonas de Riesgo** | Zonas de riesgo del modelo, sectores SeguraEP, eventos SGR | Polígonos con bordes definidos, etiquetas de sectores activas |
-| **Zoom 15+** | **Micro-Barrial / Callejero** | Vías inundables, zonas seguras, puntos de albergue, ruta de evacuación OSRM | Íconos interactivos detallados, trazado de calles en rojo/verde |
+## 3. Map layers
 
-### Layer Clutter Prevention Rules
-1. **Dynamic Hover Highlighting**: Keep fill opacities low (`0.2 – 0.35`) and increase stroke width on `mousemove` / `mouseenter`.
-2. **Accordion Layer Control**: Group map checkboxes into collapsible semantic categories:
-   - *Límites Administrativos* (Parroquias/Cantones)
-   - *Amenaza Hídrica & Riesgo* (Interpolación Lluvia IDW, Zonas de Riesgo)
-   - *Infraestructura y Respuesta* (Vías Inundables, Zonas Seguras SeguraEP)
-3. **Interactive Search / Spatial Jump**: Provide a dropdown search ("Ir a Barrio / Parroquia") that executes `map.flyTo()` rather than permanently displaying dozens of text labels.
+Layers are added in [map-manager.js](../../../frontend/js/map/map-manager.js) with MapLibre's
+`map.addLayer({...})`; risk/hazard fills use the color tokens above, often via `interpolate` expressions
+(e.g. a fill-color ramp keyed on a numeric field with stops at `40 → '#facc15'`, `100 → '#ef4444'`).
+Popups are built in [map/map-popups.js](../../../frontend/js/map/map-popups.js) and follow a consistent
+shape: colored headline status, a small metrics grid, then a call-to-action button (e.g. *Trazar Ruta de
+Evacuación*) — match that shape for a new popup rather than free-forming one.
 
----
+**Layer-density guidance** (recommendation, not yet fully encoded as automatic zoom-based show/hide in
+the code): group related toggles under one accordion/category in the layer-control menu (the existing
+`#toggle-*` checkboxes list in `index.html` already does this informally — administrative boundaries,
+hazard/risk, infrastructure/response); keep fill opacities low (`0.2–0.35`) and thicken strokes on
+hover/`mousemove` rather than showing dense labels at every zoom level.
 
-## 3. Color Palette & Status Indicators
+## 4. The ES module convention — and its one sharp edge
 
-### Palette Tokens (Dark Glassmorphism Theme)
-- **Background Base**: `#0f172a` (Slate 900)
-- **Surface Panels**: `rgba(15, 23, 42, 0.85)` with `backdrop-filter: blur(12px)` and `border: 1px solid rgba(255, 255, 255, 0.1)`
-- **Text Primary**: `#f8fafc` (Slate 50)
-- **Text Secondary**: `#94a3b8` (Slate 400)
+9 files under `js/` import each other with relative paths (`js/main.js` is the entry point, loaded from
+`index.html` as `<script type="module" src="js/main.js?v=N">`). **Every one of those internal imports
+must carry the same `?v=N` querystring as `main.js`** — the browser caches each imported URL separately,
+so bumping only `main.js?v=` does not invalidate `dashboard.js`, `client.js`, etc. When you edit any file
+under `js/`, bump `N` in `index.html`'s `main.js?v=` **and** in every `import ... from '....js?v=N'` line
+across all 9 files in the same change. `styles.css?v=M` is a separate, independent counter. This was a
+real, shipped bug once (edited modules silently stayed cached) — don't reintroduce it.
 
-### Severity / Status Color System
-- **Crítico / Alto**: `#ef4444` (Red 500) | `rgba(239, 68, 68, 0.2)`
-- **Medio / Alerta**: `#facc15` (Yellow 400) | `rgba(250, 204, 21, 0.2)`
-- **Bajo / Seguro**: `#4ade80` (Green 400) | `rgba(74, 222, 128, 0.2)`
-- **Marino / Hídrico**: `#38bdf8` (Sky 400) & `#60a5fa` (Blue 400)
+## 5. Key Files
 
----
+- **Entry point**: [frontend/index.html](../../../frontend/index.html)
+- **Shared config/DOM helpers**: [frontend/js/config.js](../../../frontend/js/config.js)
+- **Map**: [frontend/js/map/map-manager.js](../../../frontend/js/map/map-manager.js),
+  [frontend/js/map/map-popups.js](../../../frontend/js/map/map-popups.js)
+- **Dashboard cards**: [frontend/js/dashboard.js](../../../frontend/js/dashboard.js)
+- **Styles**: [frontend/styles.css](../../../frontend/styles.css)
 
-## 4. Multi-Factor Popups & Tooltips
+## 6. Verification Checklist
 
-Popups must justify data points rather than presenting isolated numbers:
-- **Headline Status**: Title + Color Badge (`Alto / Crítico`, `Medio`, `Bajo`).
-- **Métricas Clave**: Grid de 2 columnas con Altitud Terreno vs. Nivel de Marea/Lluvia.
-- **Argumentación del Riesgo**: Lista explícita de factores contribuyentes (Cota topográfica + Taponamiento estuarine por pleamar + Escorrentía por lluvia).
-- **Call to Action**: Botón prominente de respuesta (ej. *Trazar Ruta de Evacuación*).
-
----
-
-## 5. UI Micro-Interactions
-- Smooth transitions on hover (`transition: all 0.2s ease`).
-- Collapsible sidebar toggle for focused map inspection.
-- Active states on view toggle pills (`.active` class with glowing accent border).
+- [ ] New third-party/user-influenced text goes through `setText`/`spanTexto`/`createElement`, never
+      `innerHTML` interpolation.
+- [ ] Colors reused from the verified palette above, not new hex values invented per-component.
+- [ ] `main.js?v=` **and** every internal `import ... ?v=` bumped together after any `js/` edit.
+- [ ] Manually open `/dashboard/` in a browser and exercise the changed feature — type checks don't
+      substitute for seeing it render (this project has no frontend test suite).

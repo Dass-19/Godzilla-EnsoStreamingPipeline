@@ -1,19 +1,24 @@
 ---
 name: backend-api
-description: 'Use this skill when developing, enhancing, or maintaining the FastAPI REST service in backend/api/app.py or hdfs_client.py. Includes OpenAPI/Swagger documentation best practices, WebHDFS Parquet reading, RespuestaAPI envelope standard, CORS configuration, static mounting, and error handling standards (404, 502, 503). Trigger phrases: "backend api", "fastapi", "rest api", "api endpoint", "openapi docs", "swagger docs", "webhdfs client", "app.py".'
+description: 'Use this skill when developing, enhancing, or maintaining the FastAPI REST service in backend/api/app.py or hdfs_client.py. Includes OpenAPI/Swagger documentation, WebHDFS Parquet reading, the RespuestaAPI envelope, and error-handling conventions (404, 502, 503). Trigger phrases: "backend api", "fastapi", "rest api", "api endpoint", "openapi docs", "swagger docs", "webhdfs client", "app.py".'
 ---
 
 # Backend FastAPI REST API Skill
 
 ## Overview
-This skill governs the development and maintenance of the FastAPI application located in `backend/api/app.py` and its WebHDFS client [`hdfs_client.py`](file:///c:/Users/H%20P/Desktop/Dass/university/6S/IDED%20&%20VD/Godzilla-EnsoStreamingPipeline/backend/api/hdfs_client.py). The API acts as the single-point consumption server for the frontend dashboard, reading processed Parquet datasets from HDFS and proxying external weather APIs.
+Governs [backend/api/app.py](../../../backend/api/app.py) and its WebHDFS client
+[hdfs_client.py](../../../backend/api/hdfs_client.py). Read-only API: it reads processed Parquet from
+HDFS, imports `risk_index.py`/`zonas_guayaquil.csv` from `backend/spark/` for the in-memory simulator, and
+proxies OpenWeatherMap so the API key never reaches the frontend.
 
 ---
 
 ## 1. Architecture & Core Responsibilities
 
-1. **Direct HDFS Integration**: Reads Parquet partitions directly from HDFS using WebHDFS and PyArrow without touching SQL databases.
-2. **Unified Envelope Response Standard (`RespuestaAPI`)**: ALL endpoints return a standardized JSON response envelope:
+1. **Direct HDFS reads**: via `hdfs_client.get_client()` (WebHDFS, pure-Python `hdfs` package) + pandas —
+   no PyArrow/native libhdfs, no SQL database.
+2. **Unified envelope (`RespuestaAPI[T]`)**: every endpoint returns this shape, built by
+   `_respuesta_exitosa(data, fuente=...)`:
    ```json
    {
      "status": "success",
@@ -27,18 +32,18 @@ This skill governs the development and maintenance of the FastAPI application lo
      }
    }
    ```
-3. **OpenAPI / Swagger UI (`/docs`)**: Maintains complete OpenAPI documentation with Markdown summaries, generic `RespuestaAPI[T]` models, and interactive example schemas (`json_schema_extra`).
-4. **Structured Error Contract**:
-   Any raised `HTTPException` is caught by the exception handler and formatted into `RespuestaAPI`:
-   - `404 Not Found`: Returned when requested HDFS partitions, dates, or legacy files do not exist (`tipo: RECURSO_NO_ENCONTRADO`).
-   - `502 Bad Gateway`: Returned when an upstream API (e.g., OpenWeatherMap) fails (`tipo: PROVEEDOR_NO_DISPONIBLE`).
-   - `503 Service Unavailable`: Returned when WebHDFS is unreachable (`tipo: SERVICIO_HDFS_NO_DISPONIBLE`).
+3. **OpenAPI docs**: `response_model=RespuestaAPI[...]`, `summary`/`description` in Markdown, and
+   `responses={...}` documenting the non-200 cases.
+4. **Structured errors**: the global `@app.exception_handler(HTTPException)` reformats any raised
+   `HTTPException` into the same `RespuestaAPI` envelope, tagging it with a `tipo` string:
+   - `404` → `RECURSO_NO_ENCONTRADO` (helper `_sin_datos(detalle)`) — requested HDFS path/date/legacy
+     file doesn't exist.
+   - `502` → `PROVEEDOR_NO_DISPONIBLE` — an upstream API (OpenWeatherMap) failed.
+   - `503` → `SERVICIO_HDFS_NO_DISPONIBLE` (helper `_hdfs_caido(error)`) — WebHDFS unreachable.
 
 ---
 
-## 2. Endpoint Decorator & Pydantic Schema Guidelines
-
-Every route created in [`backend/api/app.py`](file:///c:/Users/H%20P/Desktop/Dass/university/6S/IDED%20&%20VD/Godzilla-EnsoStreamingPipeline/backend/api/app.py) MUST return `_respuesta_exitosa(...)`:
+## 2. Endpoint pattern
 
 ```python
 @app.get(
@@ -47,7 +52,6 @@ Every route created in [`backend/api/app.py`](file:///c:/Users/H%20P/Desktop/Das
     tags=["riesgo"],
     summary="Título conciso del endpoint",
     description="Explicación detallada en Markdown de la lógica del endpoint.",
-    response_description="Descripción de la respuesta exitosa envuelta en RespuestaAPI.",
     responses={
         404: {"model": RespuestaAPI[None], "description": "Recurso ausente."},
         503: {"model": RespuestaAPI[None], "description": "HDFS inalcanzable."},
@@ -61,27 +65,40 @@ def mi_endpoint(
     return _respuesta_exitosa(data, fuente="/enso_data/ejemplo")
 ```
 
+`ZonaRiesgo` (and any other response model) is a **filter on output**: a field not declared there is
+silently dropped by FastAPI even if the underlying dict has it — when the risk row gains a new field
+upstream, add it to the response model too, or it never reaches the frontend.
+
 ---
 
 ## 3. WebHDFS Reading & Caching Rules
 
-- **Client Re-use**: Access WebHDFS via `_client()` in [`hdfs_client.py`](file:///c:/Users/H%20P/Desktop/Dass/university/6S/IDED%20&%20VD/Godzilla-EnsoStreamingPipeline/backend/api/hdfs_client.py).
-- **Process In-Memory Caching**: Use `@lru_cache(maxsize=1)` for static CSV reference files.
-- **Deduplicación de Streaming**: Always apply `_ultimo_por_zona(df)` to select the latest `epoch_id` per `zona_id` from PySpark streaming outputs.
+- **Client reuse**: `_client()` in `app.py` is a thin wrapper over `get_client(webhdfs_url, user)` from
+  [hdfs_client.py](../../../backend/api/hdfs_client.py), which is itself `@lru_cache(maxsize=1)`.
+- **Static reference data**: `_zonas_referencia()` (reads `zonas_guayaquil.csv`) is also
+  `@lru_cache(maxsize=1)` — editing the CSV requires an API restart to see the change.
+- **Streaming dedup**: always apply `_ultimo_por_zona(df)` to PySpark streaming output before returning
+  it — it sorts by `calculado_en`, drops duplicate `(zona_id, epoch_id)` (an `append` retry from
+  `foreachBatch` isn't idempotent), then keeps the latest row per `zona_id`.
+- `hdfs_client.py`'s own job is narrower than `app.py`'s usage of it: it translates "path doesn't exist"
+  into `FileNotFoundError` and caps how many date partitions get read — the response envelope and error
+  codes live in `app.py`, not there.
 
 ---
 
 ## 4. Key Files
 
-- **Servidor Principal**: [`backend/api/app.py`](file:///c:/Users/H%20P/Desktop/Dass/university/6S/IDED%20&%20VD/Godzilla-EnsoStreamingPipeline/backend/api/app.py)
-- **Cliente WebHDFS**: [`backend/api/hdfs_client.py`](file:///c:/Users/H%20P/Desktop/Dass/university/6S/IDED%20&%20VD/Godzilla-EnsoStreamingPipeline/backend/api/hdfs_client.py)
-- **Cliente JavaScript Frontend**: [`frontend/js/api/client.js`](file:///c:/Users/H%20P/Desktop/Dass/university/6S/IDED%20&%20VD/Godzilla-EnsoStreamingPipeline/frontend/js/api/client.js)
+- **Servidor Principal**: [backend/api/app.py](../../../backend/api/app.py)
+- **Cliente WebHDFS**: [backend/api/hdfs_client.py](../../../backend/api/hdfs_client.py)
+- **Modelo de Riesgo (importado en memoria)**: [backend/spark/risk_index.py](../../../backend/spark/risk_index.py)
+- **Cliente JavaScript Frontend**: [frontend/js/api/client.js](../../../frontend/js/api/client.js)
 
 ---
 
 ## 5. Verification Checklist
 
-When adding or modifying API endpoints:
-- [ ] Test python route loading: `python -c "from api.app import app"`
-- [ ] Verify OpenAPI schema validity: `python -c "from api.app import app; app.openapi()"`
-- [ ] Ensure non-200 HTTP responses raise standard `HTTPException` with explicit `detail`.
+- [ ] `SPARK_APP_DIR=backend/spark uvicorn api.app:app --reload --port 8000` boots without import errors.
+- [ ] `python -c "from api.app import app; app.openapi()"` — OpenAPI schema builds.
+- [ ] Every non-200 path raises `HTTPException` with an explicit `detail` (never a bare exception).
+- [ ] A new field on a risk/zone row is added to the matching Pydantic response model, not just to the
+      underlying dict — otherwise FastAPI drops it silently.

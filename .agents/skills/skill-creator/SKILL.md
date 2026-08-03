@@ -12,7 +12,8 @@ This skill provides a comprehensive meta-framework for creating, structuring, an
 
 ## 1. Skill Anatomy & Directory Layout
 
-Every skill must reside inside a dedicated subdirectory under `.agents/skills/` (workspace-level) or `~/.gemini/config/skills/` (global-level).
+In this project, every skill lives inside its own subdirectory under `.agents/skills/` (workspace-level,
+checked into git alongside the code it documents — that's the only location in use here).
 
 ```
 .agents/skills/<skill-name>/
@@ -48,7 +49,20 @@ description: 'Use this skill when [specific context/trigger condition]. Includes
 ### Key Writing Principles:
 - **Declarative & Actionable**: State rules clearly and direct the agent on exact actions to take or avoid.
 - **Concise & Scoped**: Keep `SKILL.md` under 500 lines. Place extensive reference documents in `references/`.
-- **Absolute File Links**: Reference workspace files using standard markdown links (`[app.py](file:///absolute/path/to/app.py)`).
+- **Repo-relative file links, never absolute**: reference files with a relative markdown link from the
+  skill's own directory (`[app.py](../../../backend/api/app.py)`), the same convention this project's own
+  `CLAUDE.md` uses. **Never use an absolute `file:///C:/Users/<name>/...` URI** — it's tied to one
+  machine's checkout path and silently breaks (dead link, no error) the moment the repo is cloned
+  elsewhere or opened by another contributor. This happened for real in this repo: every skill under
+  `.agents/skills/` shipped with `file:///c:/Users/H%20P/Desktop/...` links from a different machine, all
+  dead on the current one.
+- **Verify every factual claim against the code before writing it, don't describe from memory or
+  intent**: read the actual file, grep for the function/constant/pattern named, and quote what's really
+  there. A skill is loaded into an agent's context as ground truth — a wrong claim (a made-up config
+  format, a category name that doesn't match the code, a "the API imports X" that isn't true) doesn't
+  just fail to help, it actively steers the agent into reintroducing the exact bug the skill claims to
+  guard against. If a described pattern is aspirational (a recommendation for how new code *should* look)
+  rather than something already in the codebase, say so explicitly — don't present it as existing fact.
 - **Code Block Examples**: Provide exact code snippets illustrating correct usage patterns vs anti-patterns.
 
 ### Recommended Structure for SKILL.md:
@@ -94,5 +108,8 @@ Before finalizing any skill, verify:
 - [ ] Directory name matches `name` in YAML frontmatter.
 - [ ] YAML frontmatter is enclosed between `---` lines with valid syntax.
 - [ ] Description includes clear trigger phrases.
-- [ ] All file paths mentioned use full absolute URIs or workspace relative references.
+- [ ] Every file path is a **repo-relative** markdown link (never `file:///C:/Users/...` or any other
+      machine-specific absolute path) — click-test a couple from the skill's own directory.
+- [ ] Every concrete claim (function name, constant, category value, "X imports Y") was checked against
+      the current code, not written from memory of an earlier version or from what the design intended.
 - [ ] `SKILL.md` is concise (<500 lines) and directly actionable.
