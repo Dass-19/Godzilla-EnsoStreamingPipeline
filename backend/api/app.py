@@ -137,14 +137,7 @@ tags_metadata = [
             "Boletines y alertas oficiales emitidas por la Secretaría Nacional "
             "de Gestión de Riesgos (SNGR)."
         ),
-    },
-    {
-        "name": "compatibilidad",
-        "description": (
-            "Endpoint retrocompatible para servir capas GeoJSON y archivos "
-            "legacy requeridos por versiones previas del dashboard."
-        ),
-    },
+    }
 ]
 
 app = FastAPI(
