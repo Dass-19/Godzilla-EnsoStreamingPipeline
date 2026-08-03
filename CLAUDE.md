@@ -53,9 +53,11 @@ HDFS UI `:9870`, Spark master UI `:8080`, Kafka externo `localhost:9092`.
 ## Arquitectura
 
 ### El contrato de datos: `backend/contracts.py`
-**Empezar por acá.** Es la única definición del shape de los tres payloads que alimentan el índice de
-riesgo (marea INOCAR, cota CELEC, precipitación NASA POWER). Lo importan los dos lados: los
-productores para construir el payload (`construir_*`) y el job de Spark para leerlo (`parse_*`).
+**Empezar por acá.** Es la única definición del shape de los payloads que alimentan el índice de riesgo:
+marea INOCAR, cota CELEC, precipitación NASA POWER, estaciones de lluvia INAMHI (para IDW por zona),
+pronóstico Open-Meteo, marea observada del mareógrafo IOC, caudal del río Guayas (GEOGLOWS) y SST semanal
+de Niño 1+2 (NOAA CPC). Lo importan los dos lados: los productores para construir el payload
+(`construir_*`) y el job de Spark para leerlo (`parse_*`).
 
 Existe porque el acoplamiento era por strings anidados escritos a mano en cada lado, y los tres
 accesos del job apuntaban a rutas que ningún productor emitía. Como cada acceso estaba envuelto en
@@ -97,19 +99,26 @@ y vuelca cada mensaje **sin parsear** (`json_str` + `kafka_timestamp`) a
 `hdfs://…/enso_data/raw/<fuente>/fecha=YYYY-MM-DD/`. **Añadir una fuente = crear el topic en
 `init-kafka` + una entrada en `TOPICS_A_FUENTES`.**
 
-El cálculo del riesgo es una query aparte suscrita solo a los tres tópicos que alimentan el índice.
+El cálculo del riesgo es una query aparte suscrita a los ocho tópicos que alimentan el índice (ver
+`TOPICS_A_FUENTES` y el filtro `topics_riesgo` en `spark_streaming_job.py`).
 `EstadoFuentes` guarda en el driver el último valor de cada uno a partir de los mensajes del batch
-(con un `bootstrap()` desde HDFS al arrancar), y cada micro-batch escribe una fila por zona a
-`processed/indice_riesgo`. Cada fila lleva `origen_precip` / `origen_marea` / `origen_embalse`
-(`real` | `default`) y `datos_completos`: **una fila calculada con respaldos no debe ser
-indistinguible de una real.** También lleva `epoch_id`, porque `append` dentro de `foreachBatch` no es
-idempotente y la API deduplica por `(zona_id, epoch_id)` al leer.
+(con un `bootstrap()` desde HDFS al arrancar), resuelve la precipitación por zona con `interpolar_idw`
+(`interpolacion.py`) sobre las estaciones INAMHI vigentes, y cada micro-batch escribe una fila por zona a
+`processed/indice_riesgo`. Cada fila lleva `origen_precip` / `origen_marea` / `origen_embalse` /
+`origen_rio` / `origen_suelo` / `origen_marea_obs` / `origen_enso` (`real` | `default`) y
+`datos_completos`: **una fila calculada con respaldos no debe ser indistinguible de una real.** También
+lleva `epoch_id`, porque `append` dentro de `foreachBatch` no es idempotente y la API deduplica por
+`(zona_id, epoch_id)` al leer.
 
 [risk_index.py](backend/spark/risk_index.py) es **Python puro sin dependencias de Spark** — por eso la
 API lo importa para el endpoint de simulación. El término clave es
-`FACTOR_INTERACCION_LLUVIA_MAREA`: modela que la marea alta anula la descarga pluvial por gravedad.
-Ojo con el componente de embalse: la fuente publica **cota en msnm**, no caudal, y se normaliza contra
-el rango de operación (dividir por el umbral de alerta saturaba en 1.0 para cualquier cota real).
+`FACTOR_INTERACCION_LLUVIA_MAREA`: modela que la marea alta anula la descarga pluvial por gravedad (hay
+un segundo término análogo para caudal+marea, y un tercero que usa la anomalía de Niño 1+2 para
+amplificar la lluvia). **El embalse Daule-Peripa (CELEC) ya no pondera el índice**: la fuente era la más
+frágil del pipeline (regex sobre notas de prensa) y su rol conceptual —agua que baja hacia Guayaquil— lo
+cubre mejor el caudal del río Guayas medido por GEOGLOWS; `nivel_embalse_msnm` se sigue archivando como
+contexto en el parquet. `calcular_indice_riesgo()` también devuelve `exposicion_norm` e `indice_impacto`
+(riesgo × exposición poblacional de la zona) — `indice_riesgo` en sí sigue siendo amenaza pura.
 
 [data/geo_ref/zonas_guayaquil.csv](backend/spark/data/geo_ref/zonas_guayaquil.csv) (22+ zonas y parroquias) es la
 tabla estática de zonas. La leen Spark y la API (dos endpoints); cambiar sus columnas rompe los tres.
@@ -131,5 +140,8 @@ exacta y `integrity` (SRI). Se sirve como estático desde la propia API en `/das
 `CONFIG` en [config.js](frontend/js/config.js) usa rutas **relativas** (`/api/`).
 Utiliza Turf.js (`turf.booleanPointInPolygon`) para filtrar geométricamente los eventos de lluvia SGR
 dentro del polígono de la parroquia activa.
-`index.html` cachebustea con querystring (`js/main.js?v=15`, `styles.css?v=19`) — **incrementar ese número
-al editar** o el navegador servirá la versión vieja.
+`index.html` cachebustea con querystring (`js/main.js?v=16`, `styles.css?v=19`) — **incrementar ese número
+al editar** o el navegador servirá la versión vieja. Los 9 módulos ES bajo `js/` se importan entre sí con
+rutas relativas (`import ... from './dashboard.js?v=16'`) que llevan el **mismo** `?v=` que `main.js`:
+bumpear solo `main.js?v=` no invalida esos imports internos, porque el navegador los cachea por URL
+completa (incluida la querystring) — hay que bumpear los dos a la vez.

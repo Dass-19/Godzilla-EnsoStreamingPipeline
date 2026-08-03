@@ -15,6 +15,7 @@ Ninguna función de aquí levanta excepciones por datos ausentes: devuelven
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Any
 
 # Marcadores de procedencia que se persisten junto al índice de riesgo.
@@ -69,8 +70,8 @@ class Lectura:
     calculada con tres defaults no sea indistinguible de una fila real.
     """
 
-    valor: float = 0.0
-    origen: str = ""
+    valor: float
+    origen: str
     detalle: str = ""
 
     @property
@@ -252,13 +253,19 @@ def construir_lluvia_estacion(
 
 
 def parse_lluvia_estaciones(
-    payload: dict, max_antiguedad_horas: int = 72
+    payload: dict,
+    max_antiguedad_horas: int = 72,
+    ahora: datetime | None = None,
 ) -> list[LluviaEstacion]:
     """
     Lista de estaciones con lluvia reciente válida.
 
-    Descarta estaciones sin coordenadas, valores negativos o cuya fecha del
-    último dato exceda `max_antiguedad_horas`.
+    Descarta estaciones sin coordenadas, con acumulado negativo, con
+    `fecha_ultimo_dato` no interpretable, o cuya antigüedad respecto a `ahora`
+    exceda `max_antiguedad_horas`. INAMHI publica esa fecha en hora local de
+    Ecuador (UTC-5, sin sufijo de zona); si no se pasa `ahora` explícito se usa
+    la hora actual en ese mismo huso (los tests fijan `ahora` para no depender
+    del reloj real).
     """
     if not isinstance(payload, dict):
         return []
@@ -266,6 +273,9 @@ def parse_lluvia_estaciones(
     estaciones = payload.get("estaciones")
     if not isinstance(estaciones, list):
         return []
+
+    momento_actual = ahora if ahora is not None else datetime.utcnow() - timedelta(hours=5)
+    limite_antiguedad = timedelta(hours=max_antiguedad_horas)
 
     resultado: list[LluviaEstacion] = []
     for est in estaciones:
@@ -278,9 +288,17 @@ def parse_lluvia_estaciones(
         if lat is None or lon is None or precip is None or precip < 0:
             continue
 
+        fecha = str(est.get("fecha_ultimo_dato", ""))
+        try:
+            fecha_dato = datetime.fromisoformat(fecha)
+        except ValueError:
+            continue
+
+        if momento_actual - fecha_dato > limite_antiguedad:
+            continue
+
         id_est = str(est.get("id_estacion", ""))
         cod = str(est.get("codigo", ""))
-        fecha = str(est.get("fecha_ultimo_dato", ""))
 
         resultado.append(
             LluviaEstacion(
@@ -361,10 +379,8 @@ def construir_pronostico_precip(
     return res
 
 
-def parse_pronostico_precip(
-    payload: dict, horizonte_h: int = 24
-) -> float | None:
-    """Acumulado de lluvia pronosticado en mm para el horizonte pedido."""
+def parse_pronostico_precip(payload: dict) -> float | None:
+    """Acumulado de lluvia pronosticado en mm (`precip_sum_mm` del payload)."""
     if not isinstance(payload, dict):
         return None
     val = _a_float(payload.get("precip_sum_mm"))

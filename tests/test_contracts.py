@@ -6,6 +6,8 @@ tópico. Si alguien cambia el shape en un lado y no en el otro, estos tests
 fallan.
 """
 
+from datetime import datetime
+
 import pytest
 from contracts import (
     CENTINELA_NASA_POWER,
@@ -210,12 +212,64 @@ def test_round_trip_lluvia_estaciones_y_saturacion():
     )
     payload = {"estaciones": [est1]}
 
-    estaciones_parsed = parse_lluvia_estaciones(payload)
+    # `ahora` fijo: el filtro de frescura no debe depender de la fecha real
+    # del sistema al correr los tests.
+    ahora = datetime(2026, 7, 31, 12, 0, 0)
+    estaciones_parsed = parse_lluvia_estaciones(payload, ahora=ahora)
     assert len(estaciones_parsed) == 1
     assert estaciones_parsed[0].precip_24h_mm == 35.0
 
     api_sat = parse_saturacion_antecedente(payload, k=0.9)
     assert api_sat == pytest.approx(9.0)
+
+
+def test_parse_lluvia_estaciones_descarta_estacion_vencida():
+    """
+    Regresión: `max_antiguedad_horas` se aceptaba como parámetro pero nunca se
+    usaba para filtrar nada, así que una estación con datos de días de
+    antigüedad entraba igual al IDW marcada como dato real.
+    """
+    est_vencida = construir_lluvia_estacion(
+        id_estacion="M002",
+        codigo="M002",
+        lat=-2.19,
+        lon=-79.89,
+        precip_24h_mm=20.0,
+        fecha_ultimo_dato="2026-07-20 10:00:00",
+    )
+    payload = {"estaciones": [est_vencida]}
+
+    ahora = datetime(2026, 7, 31, 12, 0, 0)
+    assert parse_lluvia_estaciones(payload, max_antiguedad_horas=72, ahora=ahora) == []
+
+
+def test_parse_lluvia_estaciones_descarta_fecha_no_parseable():
+    est_fecha_invalida = construir_lluvia_estacion(
+        id_estacion="M003",
+        codigo="M003",
+        lat=-2.19,
+        lon=-79.89,
+        precip_24h_mm=20.0,
+        fecha_ultimo_dato="fecha-invalida",
+    )
+    payload = {"estaciones": [est_fecha_invalida]}
+
+    assert parse_lluvia_estaciones(payload, ahora=datetime(2026, 7, 31, 12, 0, 0)) == []
+
+
+def test_parse_lluvia_estaciones_respeta_el_limite_de_antiguedad():
+    ahora = datetime(2026, 7, 31, 12, 0, 0)
+
+    dentro_del_limite = construir_lluvia_estacion(
+        "M004", "M004", -2.19, -79.89, 15.0, "2026-07-28 13:00:00",  # 71h de antigüedad
+    )
+    fuera_del_limite = construir_lluvia_estacion(
+        "M005", "M005", -2.19, -79.89, 15.0, "2026-07-28 11:00:00",  # 73h de antigüedad
+    )
+    payload = {"estaciones": [dentro_del_limite, fuera_del_limite]}
+
+    resultado = parse_lluvia_estaciones(payload, max_antiguedad_horas=72, ahora=ahora)
+    assert [e.id_estacion for e in resultado] == ["M004"]
 
 
 def test_round_trip_pronostico_precip():

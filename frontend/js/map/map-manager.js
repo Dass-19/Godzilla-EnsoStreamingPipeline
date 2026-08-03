@@ -2,7 +2,7 @@
 // GESTOR DE MAPA (MAPLIBRE GL)
 // ==========================================
 
-import { CONFIG } from '../config.js';
+import { CONFIG } from '../config.js?v=16';
 
 export let map = null;
 let layersLoaded = false;

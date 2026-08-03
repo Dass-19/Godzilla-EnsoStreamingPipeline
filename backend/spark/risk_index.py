@@ -1,18 +1,32 @@
 """
 Índice compuesto de riesgo de inundación por zona.
 
-Combina, todos normalizados a [0, 1]:
-  - precip_24h_norm: acumulado de lluvia en 24h relativo a un umbral de saturación
+Combina, todos normalizados a [0, 1] y ponderados por `PESO_*`:
+  - precip_norm: acumulado de lluvia en 24h (interpolado por zona vía IDW,
+    ver `interpolacion.py`) relativo a un umbral de saturación
   - marea_norm: altura de marea relativa al rango pleamar-bajamar del estuario
-  - embalse_norm: cota del embalse Daule-Peripa dentro de su rango de operación
-  - factor_topografico: derivado de cota + pendiente + cercanía a estero (estático por zona)
-  - historico_flag: 1.0 si la zona tiene antecedentes de inundación, 0 si no
+  - caudal_norm: caudal del río Guayas (GEOGLOWS) relativo a su rango base-crecida
+  - suelo_norm: saturación antecedente del suelo (proxy API sobre series INAMHI)
+  - topografia_norm: derivado de cota + pendiente + cercanía a estero (estático por zona)
+  - historico_norm: 1.0 si la zona tiene antecedentes de inundación, 0 si no
+
+`embalse_norm` (cota del embalse Daule-Peripa) se sigue calculando y
+reportando en `componentes`, pero **no pondera el índice**: la fuente (CELEC)
+es la más frágil del pipeline y su rol conceptual —agua que baja hacia
+Guayaquil— lo cubre mejor el caudal medido por GEOGLOWS.
 
 La idea clave del proyecto (objetivo específico 5 del enunciado) es que
 marea alta y lluvia intensa se refuerzan: con marea alta el sistema pluvial
 pierde capacidad de descarga por gravedad hacia el estuario, así que el
-peso de la lluvia se amplifica cuando la marea también está alta. Eso se
-modela con un término de interacción explícito, no solo una suma lineal.
+peso de la lluvia (y del caudal fluvial) se amplifica cuando la marea también
+está alta. Eso se modela con términos de interacción explícitos, no solo una
+suma lineal. La anomalía de SST en Niño 1+2 amplifica a su vez la lluvia
+(más convección, misma agua cae con más intensidad horaria).
+
+`calcular_indice_riesgo()` también devuelve `exposicion_norm` e
+`indice_impacto` (= `indice_riesgo` × `exposicion_norm`, según población de la
+zona): `indice_riesgo` sigue siendo una medida de amenaza pura, la exposición
+es una métrica aparte.
 
 Pesos y umbrales son deliberadamente simples y documentados para que el
 informe técnico pueda justificarlos y, si hace falta, calibrarlos contra

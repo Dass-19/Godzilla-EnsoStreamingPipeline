@@ -1,8 +1,9 @@
 """
 Módulo de interpolación espacial por IDW (Inverse Distance Weighting).
 
-Python puro sin dependencias de Spark, para que pueda ser importado tanto por
-el job de PySpark (`spark_streaming_job.py`) como por la API FastAPI (`app.py`).
+Python puro sin dependencias de Spark, igual que `risk_index.py`: lo importa
+el job de PySpark (`spark_streaming_job.py`) para resolver `precip_24h_mm` por
+zona a partir de las estaciones INAMHI vigentes.
 """
 
 from __future__ import annotations

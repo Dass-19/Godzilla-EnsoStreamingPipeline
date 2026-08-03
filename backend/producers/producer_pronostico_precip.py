@@ -2,7 +2,7 @@
 Productor de pronóstico cuantitativo de precipitación (Open-Meteo).
 
 Obtiene el acumulado de lluvia y probabilidad máxima pronosticada para
-Guayaquil (-2.19, -79.89) con horizonte a 24h/48h.
+Guayaquil (-2.19, -79.89) con horizonte a 24h.
 """
 
 import os

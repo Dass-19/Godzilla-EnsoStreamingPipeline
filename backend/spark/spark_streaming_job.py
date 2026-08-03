@@ -192,7 +192,7 @@ class EstadoFuentes:
         self._caudal = None
         self._anomalia_nino12 = None
 
-    def actualizar(self, topic: str, payload: dict) -> None:
+    def actualizar(self, topic: str, payload: dict, ahora=None) -> None:
         if topic == TOPIC_MAREA:
             val = parse_marea(payload)
             if val is not None:
@@ -206,7 +206,7 @@ class EstadoFuentes:
             if val is not None:
                 self._precip_nasa = val
         elif topic == TOPIC_PRECIP_ESTACIONES:
-            estaciones = parse_lluvia_estaciones(payload)
+            estaciones = parse_lluvia_estaciones(payload, ahora=ahora)
             if estaciones:
                 self._estaciones_inamhi = estaciones
             sat = parse_saturacion_antecedente(payload)

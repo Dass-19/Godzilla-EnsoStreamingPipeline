@@ -1,9 +1,9 @@
 """
 Productor de caudal fluvial desde la API de GEOGLOWS v2 (ECMWF).
 
-Monitorea los tramos hidrológicos del río Guayas (river_id=670078246), río Daule
-(670066944) y río Babahoyo (670065947). Los IDs de tramo van fijos y comentados
-porque la resolución por coordenadas puede enganchar afluentes menores.
+Consulta el tramo del río Guayas frente a Guayaquil (river_id=670078246), fijo
+y comentado en el código porque la resolución por coordenadas puede enganchar
+afluentes menores (ver `RIVER_ID_GUAYAS`).
 """
 
 from __future__ import annotations
@@ -20,6 +20,10 @@ INTERVAL_SECONDS = int(os.environ.get("INTERVALO_CAUDAL", 60 * 60))
 # Tramo principal del Río Guayas frente a Guayaquil
 RIVER_ID_GUAYAS = 670078246
 URL_GEOGLOWS = f"https://geoglows.ecmwf.int/api/v2/forecast/{RIVER_ID_GUAYAS}"
+
+# Otros tramos identificados y validados por magnitud de caudal, no ingeridos
+# hoy porque el índice solo necesita el Guayas: Daule aguas abajo de
+# Daule-Peripa (river_id=670066944) y Babahoyo (river_id=670065947).
 
 
 def fetch_caudal_geoglows() -> list[dict]:
