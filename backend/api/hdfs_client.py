@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import io
 import logging
+import re
 from functools import lru_cache
 
 import pandas as pd
@@ -58,6 +59,15 @@ def _listar_particiones(
 ) -> list[str]:
     prefijo = f"{partition_col}="
     return sorted(e for e in _listar(client, base_path) if e.startswith(prefijo))
+
+
+def listar_valores_particion(
+    client: InsecureClient,
+    base_path: str,
+    partition_col: str,
+) -> list[str]:
+    """Nombres de partición bajo base_path sin el prefijo `col=` (ej. "noaa")."""
+    return [p.split("=", 1)[1] for p in _listar_particiones(client, base_path, partition_col)]
 
 
 def _leer_particion(client: InsecureClient, ruta_particion: str) -> list[pd.DataFrame]:
@@ -135,3 +145,53 @@ def read_all_partitions_parquet(
         return pd.DataFrame()
 
     return pd.concat(dfs, ignore_index=True)
+
+
+def leer_texto_particiones(
+    client: InsecureClient,
+    base_path: str,
+    partition_col: str = "fecha",
+    desde: str | None = None,
+    hasta: str | None = None,
+    max_particiones: int | None = MAX_PARTICIONES_POR_DEFECTO,
+) -> list[str]:
+    """
+    Equivalente a `read_all_partitions_parquet` pero para archivos de texto
+    plano (no parquet): concatena todas las líneas de todos los archivos de
+    las particiones filtradas/acotadas. Devuelve `[]` si no hay particiones
+    en el rango, nunca lanza `FileNotFoundError` (mismo comportamiento que
+    `read_all_partitions_parquet` con rango vacío).
+    """
+    particiones = _listar_particiones(client, base_path, partition_col)
+
+    if desde:
+        particiones = [p for p in particiones if p.split("=", 1)[1] >= desde]
+    if hasta:
+        particiones = [p for p in particiones if p.split("=", 1)[1] <= hasta]
+
+    if max_particiones is not None and len(particiones) > max_particiones:
+        particiones = particiones[-max_particiones:]
+
+    lineas: list[str] = []
+    for particion in particiones:
+        ruta_particion = f"{base_path}/{particion}"
+        for archivo in _listar(client, ruta_particion):
+            if not archivo.endswith(".log"):
+                continue
+            with client.read(f"{ruta_particion}/{archivo}") as reader:
+                contenido = reader.read()
+            lineas.extend(contenido.decode("utf-8").splitlines())
+
+    return lineas
+
+
+_RE_LINEA_LOG = re.compile(
+    r"^(?P<fecha>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) "
+    r"(?P<nivel>[A-Z]+) (?P<logger>\S+): (?P<mensaje>.*)$"
+)
+
+
+def parsear_linea_log(linea: str) -> dict[str, str] | None:
+    """Parsea una línea con el formato de HandlerHDFS; None si no matchea."""
+    m = _RE_LINEA_LOG.match(linea)
+    return m.groupdict() if m else None

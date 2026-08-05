@@ -8,7 +8,7 @@ import datetime
 import os
 
 import requests
-from common.kafka_client import build_producer, run_loop
+from common.kafka_client import build_producer, logger, run_loop
 
 ENDPOINT = "https://archive-api.open-meteo.com/v1/archive"
 
@@ -29,7 +29,7 @@ def _ventana_fechas():
 
 
 def test_connection():
-    print("[*] Probando conexión con Open-Meteo...")
+    logger.info("Probando conexión con Open-Meteo...")
     try:
         # Prueba ligera
         inicio, fin = _ventana_fechas()
@@ -43,18 +43,18 @@ def test_connection():
         }
         response = requests.get(ENDPOINT, params=params, timeout=10)
         if response.status_code == 200:
-            print("[+] Conexión exitosa con Open-Meteo (Status 200)")
+            logger.info("Conexión exitosa con Open-Meteo (Status 200)")
             return True
         else:
-            print(f"[-] Error de conexión con Open-Meteo: HTTP {response.status_code}")
+            logger.error("Error de conexión con Open-Meteo: HTTP %s", response.status_code)
             return False
-    except Exception as e:
-        print(f"[-] Fallo de conexión con Open-Meteo: {e}")
+    except Exception:
+        logger.exception("Fallo de conexión con Open-Meteo")
         return False
 
 
 def ingest_data():
-    print("[*] Descargando variables atmosféricas predictivas de Open-Meteo...")
+    logger.info("Descargando variables atmosféricas predictivas de Open-Meteo...")
     inicio, fin = _ventana_fechas()
     params = {
         "latitude": LATITUD_NINO34,
@@ -101,8 +101,8 @@ def ingest_data():
             },
             "data": records,
         }
-    except Exception as e:
-        print(f"[-] Error al descargar/procesar datos de Open-Meteo: {e}")
+    except Exception:
+        logger.exception("Error al descargar/procesar datos de Open-Meteo")
         return None
 
 

@@ -21,6 +21,7 @@ import os
 import urllib.parse
 import urllib.request
 
+from common.kafka_client import logger
 from hdfs import InsecureClient
 
 LAYERS = [
@@ -58,7 +59,7 @@ def download_layer(layer_info, hdfs_client, hdfs_base_path, fmt="geojson"):
 
     if title == "sgr_parroquias_guayaquil":
         try:
-            print("[*] Descargando parroquias urbanas y rurales...")
+            logger.info("Descargando parroquias urbanas y rurales...")
             # Urbanas
             u_req = urllib.request.Request(
                 f"{layer_info['url_urbanas']}/query?where=1=1&outFields=*&outSR=4326&f=geojson",
@@ -95,10 +96,12 @@ def download_layer(layer_info, hdfs_client, hdfs_base_path, fmt="geojson"):
             hdfs_path = f"{hdfs_base_path}/{filename}.{fmt}"
             content = json.dumps(data).encode("utf-8")
             hdfs_client.write(hdfs_path, data=content, overwrite=True)
-            print(f"[+] Guardado en HDFS: {hdfs_path} ({len(combined_features)} parroquias)")
+            logger.info(
+                "Guardado en HDFS: %s (%d parroquias)", hdfs_path, len(combined_features)
+            )
             return
-        except Exception as e:
-            print(f"[-] Error descargando parroquias: {e}")
+        except Exception:
+            logger.exception("Error descargando parroquias")
             return
 
     base_url = layer_info["url"]
@@ -124,7 +127,7 @@ def download_layer(layer_info, hdfs_client, hdfs_base_path, fmt="geojson"):
                     break
                 all_features.extend(features)
 
-                print(f"[*] Descargados {len(all_features)} registros para {title}...")
+                logger.info("Descargados %d registros para %s...", len(all_features), title)
 
                 if page_data.get("exceededTransferLimit") or len(features) >= 2000:
                     offset += len(features)
@@ -161,10 +164,10 @@ def download_layer(layer_info, hdfs_client, hdfs_base_path, fmt="geojson"):
         hdfs_path = f"{hdfs_base_path}/{filename}.{fmt}"
         content = json.dumps(data).encode("utf-8")
         hdfs_client.write(hdfs_path, data=content, overwrite=True)
-        print(f"[+] Guardado en HDFS: {hdfs_path}")
+        logger.info("Guardado en HDFS: %s", hdfs_path)
 
-    except Exception as e:
-        print(f"[-] Error descargando {title} ({fmt}): {e}")
+    except Exception:
+        logger.exception("Error descargando %s (%s)", title, fmt)
 
 
 def run_script():
@@ -172,15 +175,15 @@ def run_script():
     hdfs_user = os.environ.get("HDFS_USER", "root")
     hdfs_base_path = os.environ.get("HDFS_BASE_PATH", "/enso_data/raw/seguraep")
 
-    print(f"[*] Conectando a HDFS en {webhdfs_url}...")
+    logger.info("Conectando a HDFS en %s...", webhdfs_url)
     client = InsecureClient(webhdfs_url, user=hdfs_user)
 
-    print("[*] Iniciando descarga de capas (SeguraEP) a HDFS directamente...")
+    logger.info("Iniciando descarga de capas (SeguraEP) a HDFS directamente...")
     for layer in LAYERS:
         for fmt in ["geojson"]:
             download_layer(layer, client, hdfs_base_path, fmt)
 
-    print("[*] Proceso finalizado. Capas de SeguraEP guardadas en HDFS.")
+    logger.info("Proceso finalizado. Capas de SeguraEP guardadas en HDFS.")
 
 
 if __name__ == "__main__":

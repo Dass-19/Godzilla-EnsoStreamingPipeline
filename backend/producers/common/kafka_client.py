@@ -18,9 +18,11 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 import time
 from collections.abc import Callable, Iterable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from pathlib import Path
 
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
@@ -33,6 +35,74 @@ logger = logging.getLogger("enso.producer")
 
 KAFKA_BOOTSTRAP = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 MAX_REQUEST_SIZE_BYTES = 10 * 1024 * 1024
+
+HDFS_LOGS_BASE_PATH = "/enso_data/raw/producer_logs"
+INTERVALO_FLUSH_LOGS_S = int(os.environ.get("INTERVALO_FLUSH_LOGS_S", "60"))
+
+
+def _nombre_producer(argv0: str | None = None) -> str:
+    """Deriva el nombre del producer del script en ejecución (producer_noaa.py -> noaa)."""
+    return Path(argv0 if argv0 is not None else sys.argv[0]).stem.removeprefix("producer_")
+
+
+class HandlerHDFS(logging.Handler):
+    """Bufferiza líneas de log en memoria y las vuelca a HDFS periódicamente.
+
+    Cada flush escribe un archivo nuevo (nunca hace append) bajo
+    ``producer_logs/producer=<nombre>/fecha=YYYY-MM-DD/<epoch_ms>.log`` para no
+    depender de si el clúster tiene habilitado el append de WebHDFS. Un fallo
+    al escribir a HDFS nunca debe tumbar el producer: se traga la excepción y
+    solo avisa por stderr, igual que ya hace producer_seguraep.py con sus
+    propios errores de descarga.
+    """
+
+    def __init__(self, nombre_producer: str | None = None):
+        super().__init__()
+        self._nombre = nombre_producer or _nombre_producer()
+        self._buffer: list[str] = []
+        self._ultimo_flush = time.monotonic()
+        self._client = None
+
+    def _obtener_cliente(self):
+        if self._client is None:
+            from hdfs import InsecureClient
+
+            webhdfs_url = os.environ.get("WEBHDFS_URL", "http://localhost:9870")
+            hdfs_user = os.environ.get("HDFS_USER", "root")
+            self._client = InsecureClient(webhdfs_url, user=hdfs_user)
+        return self._client
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self._buffer.append(self.format(record))
+        # ponytail: buffer acotado a 2000 líneas (~ evita crecer sin límite si
+        # HDFS está caído por mucho tiempo); si se necesita retener más,
+        # habría que persistir a disco local en vez de solo memoria.
+        if len(self._buffer) > 2000:
+            del self._buffer[:-2000]
+        if time.monotonic() - self._ultimo_flush >= INTERVALO_FLUSH_LOGS_S:
+            self.flush()
+
+    def flush(self) -> None:
+        if not self._buffer:
+            self._ultimo_flush = time.monotonic()
+            return
+        contenido = "\n".join(self._buffer) + "\n"
+        hoy = datetime.now(UTC).strftime("%Y-%m-%d")
+        epoch_ms = int(time.time() * 1000)
+        ruta = (
+            f"{HDFS_LOGS_BASE_PATH}/producer={self._nombre}/fecha={hoy}/{epoch_ms}.log"
+        )
+        try:
+            self._obtener_cliente().write(ruta, data=contenido.encode("utf-8"), overwrite=True)
+            self._buffer.clear()
+        except Exception as e:
+            print(f"[HandlerHDFS] no se pudo escribir logs en {ruta}: {e}", file=sys.stderr)
+        finally:
+            self._ultimo_flush = time.monotonic()
+
+
+if os.environ.get("WEBHDFS_URL"):
+    logger.addHandler(HandlerHDFS())
 
 
 def build_producer(bootstrap_servers: str = KAFKA_BOOTSTRAP) -> KafkaProducer:
@@ -59,7 +129,7 @@ def send_record(
         key: str | None = None
         ) -> None:
     record = dict(record)
-    record.setdefault("ingested_at", datetime.now(timezone.utc).isoformat())
+    record.setdefault("ingested_at", datetime.now(UTC).isoformat())
     future = producer.send(topic, key=key, value=record)
     try:
         metadata = future.get(timeout=10)

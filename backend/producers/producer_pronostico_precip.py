@@ -8,7 +8,7 @@ Guayaquil (-2.19, -79.89) con horizonte a 24h.
 import os
 
 import requests
-from common.kafka_client import build_producer, run_loop
+from common.kafka_client import build_producer, logger, run_loop
 from contracts import TOPIC_PRECIP_PRONOSTICO, construir_pronostico_precip
 
 INTERVAL_SECONDS = int(os.environ.get("INTERVALO_PRONOSTICO", 30 * 60))
@@ -27,7 +27,7 @@ def fetch_pronostico_precip() -> list[dict]:
     try:
         resp = requests.get(URL_OPEN_METEO, timeout=10)
         if not resp.ok:
-            print(f"[-] Open-Meteo pronóstico respondió {resp.status_code}")
+            logger.error("Open-Meteo pronóstico respondió %s", resp.status_code)
             return []
         data = resp.json()
 
@@ -55,10 +55,10 @@ def fetch_pronostico_precip() -> list[dict]:
             precip_probability_max=prob,
             horizonte_h=24,
         )
-        print(f"[+] Pronóstico precipitación 24h: {precip} mm")
+        logger.info("Pronóstico precipitación 24h: %s mm", precip)
         return [payload]
-    except Exception as e:
-        print(f"[-] Error consultando pronóstico Open-Meteo: {e}")
+    except Exception:
+        logger.exception("Error consultando pronóstico Open-Meteo")
         return []
 
 

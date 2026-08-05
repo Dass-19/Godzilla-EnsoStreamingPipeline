@@ -2,7 +2,7 @@
 // CLIENTE API DE SERVICIOS
 // ==========================================
 
-import { CONFIG } from '../config.js?v=18';
+import { CONFIG } from '../config.js?v=20';
 
 /**
  * Desempaqueta y valida respuestas con envoltura RespuestaAPI { status, data, error, meta }.
@@ -118,4 +118,16 @@ export async function fetchCapasParroquias() {
 export async function fetchCapasSectores() {
     const res = await fetch(CONFIG.API_BASE + 'capas/sectores');
     return await parseResponse(res, "Error consultando sectores");
+}
+
+export async function fetchLogProducers() {
+    const res = await fetch(CONFIG.API_BASE + 'logs/productores');
+    return await parseResponse(res, "Error consultando producers con logs");
+}
+
+export async function fetchLogs({ producer, nivel } = {}) {
+    const params = new URLSearchParams({ producer });
+    if (nivel) params.set('nivel', nivel);
+    const res = await fetch(`${CONFIG.API_BASE}logs?${params.toString()}`);
+    return await parseResponse(res, "Error consultando logs del producer");
 }

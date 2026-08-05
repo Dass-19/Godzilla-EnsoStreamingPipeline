@@ -15,6 +15,7 @@ for directorio in (
     RAIZ / "backend",  # contracts.py
     RAIZ / "backend" / "spark",  # risk_index.py, spark_streaming_job.py
     RAIZ / "backend" / "producers",
+    RAIZ / "backend" / "api",  # hdfs_client.py (no requiere fastapi, a diferencia de app.py)
 ):
     ruta = str(directorio)
     if ruta not in sys.path:

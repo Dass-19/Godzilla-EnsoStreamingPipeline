@@ -4,10 +4,8 @@ Extrae cuerpos de agua principales (ríos, esteros) y calles principales
 usando la API de Overpass para la provincia del Guayas.
 """
 
-import traceback
-
 import requests
-from common.kafka_client import build_producer, send_record
+from common.kafka_client import build_producer, logger, send_record
 
 # overpass-api.de está devolviendo 406 a clientes "tipo bot" (requests, curl, QGIS)
 # desde 2024-2026 por un filtro anti-scraping. Usamos mirrors como alternativa.
@@ -24,7 +22,7 @@ HEADERS = {"User-Agent": "GuayasGeoIngest/1.0 (contacto@ejemplo.com)"}
 
 
 def fetch_osm_data():
-    print("[*] Conectando a Overpass API para extraer datos del Guayas...")
+    logger.info("Conectando a Overpass API para extraer datos del Guayas...")
 
     bbox = "-2.3,-80.1,-2.0,-79.8"
 
@@ -46,7 +44,7 @@ def fetch_osm_data():
 
     for url in OVERPASS_URLS:
         try:
-            print(f"[*] Probando endpoint: {url}")
+            logger.info("Probando endpoint: %s", url)
             response = requests.post(
                 url,
                 data={"data": overpass_query},
@@ -56,18 +54,18 @@ def fetch_osm_data():
             if response.status_code == 200:
                 break  # este mirror funcionó
             else:
-                print(
-                    f"[-] {url} devolvió HTTP {response.status_code}. Probando siguiente mirror..."
+                logger.error(
+                    "%s devolvió HTTP %s. Probando siguiente mirror...", url, response.status_code
                 )
                 last_error = f"HTTP {response.status_code}"
                 response = None
         except requests.exceptions.RequestException as e:
-            print(f"[-] Falló {url}: {e}. Probando siguiente mirror...")
+            logger.exception("Falló %s. Probando siguiente mirror...", url)
             last_error = str(e)
             response = None
 
     if response is None:
-        print(f"[-] Todos los mirrors fallaron ({last_error}). No se publica nada.")
+        logger.error("Todos los mirrors fallaron (%s). No se publica nada.", last_error)
         return None
 
     try:
@@ -99,18 +97,17 @@ def fetch_osm_data():
                     )
 
         if not features:
-            print("[-] La consulta no devolvió elementos. No se publica nada.")
+            logger.error("La consulta no devolvió elementos. No se publica nada.")
             return None
 
         return {"type": "FeatureCollection", "features": features}
 
-    except requests.exceptions.RequestException as e:
+    except requests.exceptions.RequestException:
         # cubre Timeout, ConnectionError, HTTPError, etc.
-        print(f"[-] Error de red/timeout contactando Overpass: {e}. No se publica nada.")
+        logger.exception("Error de red/timeout contactando Overpass. No se publica nada.")
         return None
-    except Exception as e:
-        print(f"[-] Error fatal extrayendo datos OSM: {e}")
-        traceback.print_exc()
+    except Exception:
+        logger.exception("Error fatal extrayendo datos OSM")
         return None
 
 
@@ -121,9 +118,9 @@ def run_producer():
         wrapped = {"metadata": {"source": "OSM API"}, "data": data}
         send_record(producer, "guayas-osm", wrapped)
         producer.flush()
-        print("[+] guayas_osm enviado a Kafka.")
+        logger.info("guayas_osm enviado a Kafka.")
     else:
-        print("[-] guayas_osm sin datos válidos; no se publicó nada.")
+        logger.error("guayas_osm sin datos válidos; no se publicó nada.")
 
 
 if __name__ == "__main__":

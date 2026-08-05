@@ -8,7 +8,7 @@ import datetime
 import os
 
 import requests
-from common.kafka_client import build_producer, run_loop
+from common.kafka_client import build_producer, logger, run_loop
 
 INTERVAL_SECONDS = int(os.environ.get("INTERVALO_CLIMA", 60 * 60))
 
@@ -36,10 +36,10 @@ def get_json(url, timeout=20):
 
 
 def ingest_estaciones():
-    print("[*] Descargando catálogo de estaciones (Visor Hidro-Meteorológico)...")
+    logger.info("Descargando catálogo de estaciones (Visor Hidro-Meteorológico)...")
     try:
         data, status = get_json(ESTACIONES_URL)
-        print(f"[+] {len(data)} estaciones obtenidas (HTTP {status}).")
+        logger.info("%s estaciones obtenidas (HTTP %s).", len(data), status)
         return {
             "endpoint": ESTACIONES_URL,
             "http_status": status,
@@ -47,7 +47,7 @@ def ingest_estaciones():
             "estaciones": data,
         }
     except requests.exceptions.RequestException as e:
-        print(f"[-] Error al obtener estaciones: {e}")
+        logger.exception("Error al obtener estaciones")
         return {"endpoint": ESTACIONES_URL, "error": str(e)}
 
 
@@ -55,10 +55,10 @@ def ingest_pronostico(fecha=None):
     if fecha is None:
         fecha = datetime.date.today().isoformat()
     url = PRONOSTICO_URL_TPL.format(fecha=fecha)
-    print(f"[*] Descargando pronóstico diario para {fecha}...")
+    logger.info("Descargando pronóstico diario para %s...", fecha)
     try:
         data, status = get_json(url)
-        print(f"[+] Pronóstico de {len(data)} localidades obtenido (HTTP {status}).")
+        logger.info("Pronóstico de %s localidades obtenido (HTTP %s).", len(data), status)
         return {
             "endpoint": url,
             "http_status": status,
@@ -67,7 +67,7 @@ def ingest_pronostico(fecha=None):
             "pronostico": data,
         }
     except requests.exceptions.RequestException as e:
-        print(f"[-] Error al obtener pronóstico: {e}")
+        logger.exception("Error al obtener pronóstico")
         return {"endpoint": url, "fecha": fecha, "error": str(e)}
 
 

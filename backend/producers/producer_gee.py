@@ -10,9 +10,8 @@ Requiere autenticación previa (earthengine authenticate).
 import datetime
 import json
 import os
-import traceback
 
-from common.kafka_client import build_producer, run_loop
+from common.kafka_client import build_producer, logger, run_loop
 
 try:
     # pyrefly: ignore [missing-import]
@@ -33,13 +32,13 @@ def _ventana_fechas():
 
 
 def test_connection():
-    print("[*] Verificando entorno GEE...")
+    logger.info("Verificando entorno GEE...")
     if not EE_AVAILABLE:
-        print("[-] earthengine-api no está instalado.")
+        logger.error("earthengine-api no está instalado.")
         return False
 
     try:
-        print("[*] Intentando inicializar Google Earth Engine...")
+        logger.info("Intentando inicializar Google Earth Engine...")
         credentials_path = os.environ.get("GEE_CREDENTIALS_PATH")
         if credentials_path and os.path.exists(credentials_path):
             with open(credentials_path) as f:
@@ -48,15 +47,15 @@ def test_connection():
             ee.Initialize(credentials, project="ensostreamingpipeline")
         else:
             ee.Initialize(project="ensostreamingpipeline")
-        print("[+] Google Earth Engine inicializado correctamente.")
+        logger.info("Google Earth Engine inicializado correctamente.")
         return True
-    except Exception as e:
-        print(f"[-] Error al inicializar GEE (¿Falta autenticación?): {e}")
+    except Exception:
+        logger.exception("Error al inicializar GEE (¿Falta autenticación?)")
         return False
 
 
 def ingest_data():
-    print("[*] Descargando y procesando datos satelitales de GEE (NOAA OISST)...")
+    logger.info("Descargando y procesando datos satelitales de GEE (NOAA OISST)...")
     try:
         # Regiones Clave para predicción de El Niño
         nino4 = ee.Geometry.Rectangle([160, -5, 180, 5]).union(
@@ -185,15 +184,14 @@ def ingest_data():
             },
             "data": records,
         }
-    except Exception as e:
-        print(f"[-] Error procesando datos de GEE: {e}")
-        traceback.print_exc()
+    except Exception:
+        logger.exception("Error procesando datos de GEE")
         return None
 
 
 def run_producer():
     if not test_connection():
-        print("[-] GEE no disponible; el productor no arranca el loop.")
+        logger.error("GEE no disponible; el productor no arranca el loop.")
         return
 
     producer = build_producer()

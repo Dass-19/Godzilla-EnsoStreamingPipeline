@@ -13,7 +13,7 @@ import io
 import os
 
 import requests
-from common.kafka_client import build_producer, run_loop
+from common.kafka_client import build_producer, logger, run_loop
 from contracts import TOPIC_CAUDAL, construir_caudal
 
 INTERVAL_SECONDS = int(os.environ.get("INTERVALO_CAUDAL", 60 * 60))
@@ -31,7 +31,7 @@ def fetch_caudal_geoglows() -> list[dict]:
     try:
         resp = requests.get(URL_GEOGLOWS, params={"format": "json"}, timeout=12)
         if not resp.ok:
-            print(f"[-] GEOGLOWS API respondió {resp.status_code}")
+            logger.error("GEOGLOWS API respondió %s", resp.status_code)
             return []
 
         caudal_val = None
@@ -74,13 +74,13 @@ def fetch_caudal_geoglows() -> list[dict]:
                 caudal_m3s=caudal_val,
                 tramo="Guayas",
             )
-            print(f"[+] Caudal GEOGLOWS Guayas: {caudal_val} m3/s")
+            logger.info("Caudal GEOGLOWS Guayas: %s m3/s", caudal_val)
             return [payload]
 
-        print("[-] GEOGLOWS: payload sin datos de caudal")
+        logger.error("GEOGLOWS: payload sin datos de caudal")
         return []
-    except Exception as e:
-        print(f"[-] Error consultando GEOGLOWS: {e}")
+    except Exception:
+        logger.exception("Error consultando GEOGLOWS")
         return []
 
 

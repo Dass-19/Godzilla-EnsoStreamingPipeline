@@ -18,6 +18,8 @@ import sys
 import time
 from pathlib import Path
 
+from common.kafka_client import logger
+
 DIRECTORIO = Path(__file__).resolve().parent
 
 # Productores de larga duración: corren su propio `run_loop` y no deben salir.
@@ -61,12 +63,12 @@ _detener = False
 
 def _pedir_parada(signum, _frame):
     global _detener
-    print(f"[!] Señal {signum} recibida, deteniendo productores...", flush=True)
+    logger.info("Señal %s recibida, deteniendo productores...", signum)
     _detener = True
 
 
 def _lanzar(script: str) -> subprocess.Popen:
-    print(f"[*] Levantando {script}...", flush=True)
+    logger.info("Levantando %s...", script)
     # -u: salida sin buffer, para que los logs aparezcan en `docker logs`.
     return subprocess.Popen([sys.executable, "-u", str(DIRECTORIO / script)], cwd=DIRECTORIO)
 
@@ -87,10 +89,9 @@ def main() -> None:
 
     oneshot = {script: 0.0 for script in PRODUCTORES_ONESHOT}
 
-    print(
-        f"[+] {len(supervisados)} productores supervisados, "
-        f"{len(oneshot)} jobs one-shot cada {INTERVALO_ONESHOT}s.",
-        flush=True,
+    logger.info(
+        "%d productores supervisados, %d jobs one-shot cada %ss.",
+        len(supervisados), len(oneshot), INTERVALO_ONESHOT,
     )
 
     try:
@@ -104,11 +105,9 @@ def main() -> None:
 
                 if proceso is not None:
                     estado["reinicios"] += 1
-                    print(
-                        f"[-] {script} terminó con código {proceso.returncode} "
-                        f"(reinicio #{estado['reinicios']}); "
-                        f"reintento en {estado['backoff']}s",
-                        flush=True,
+                    logger.warning(
+                        "%s terminó con código %s (reinicio #%d); reintento en %ss",
+                        script, proceso.returncode, estado["reinicios"], estado["backoff"],
                     )
                     estado["proceso"] = None
                     estado["reintento_en"] = ahora + estado["backoff"]
@@ -122,10 +121,7 @@ def main() -> None:
                 if ahora >= proximo:
                     proceso = _lanzar(script)
                     proceso.wait()
-                    print(
-                        f"[+] {script} finalizó con código {proceso.returncode}",
-                        flush=True,
-                    )
+                    logger.info("%s finalizó con código %s", script, proceso.returncode)
                     oneshot[script] = time.monotonic() + INTERVALO_ONESHOT
 
             time.sleep(2)
@@ -133,7 +129,7 @@ def main() -> None:
         for script, estado in supervisados.items():
             proceso = estado["proceso"]
             if proceso is not None and proceso.poll() is None:
-                print(f"[*] Deteniendo {script}...", flush=True)
+                logger.info("Deteniendo %s...", script)
                 proceso.terminate()
 
         for estado in supervisados.values():

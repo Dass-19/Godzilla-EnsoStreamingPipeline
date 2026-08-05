@@ -10,7 +10,7 @@ job de Spark.
 import os
 
 import requests
-from common.kafka_client import build_producer, run_loop
+from common.kafka_client import build_producer, logger, run_loop
 from contracts import TOPIC_PRECIP_ESTACIONES, construir_lluvia_estacion
 
 INTERVAL_SECONDS = int(os.environ.get("INTERVALO_PRECIPITACION", 15 * 60))
@@ -24,11 +24,11 @@ def fetch_inamhi_precipitacion() -> dict:
     try:
         resp_est = requests.get(URL_ESTACIONES, timeout=10)
         if not resp_est.ok:
-            print(f"[-] INAMHI API respondió {resp_est.status_code}")
+            logger.error("INAMHI API respondió %s", resp_est.status_code)
             return {}
         cat_estaciones = resp_est.json()
-    except Exception as e:
-        print(f"[-] Error consultando catálogo INAMHI: {e}")
+    except Exception:
+        logger.exception("Error consultando catálogo INAMHI")
         return {}
 
     estaciones_validas = []
@@ -91,9 +91,9 @@ def fetch_inamhi_precipitacion() -> dict:
 def fetch_payloads() -> list[dict]:
     data = fetch_inamhi_precipitacion()
     if data and data.get("estaciones"):
-        print(f"[+] INAMHI lluvia: {len(data['estaciones'])} estaciones en Guayas")
+        logger.info("INAMHI lluvia: %s estaciones en Guayas", len(data["estaciones"]))
         return [data]
-    print("[-] INAMHI lluvia: sin datos vigentes")
+    logger.error("INAMHI lluvia: sin datos vigentes")
     return []
 
 

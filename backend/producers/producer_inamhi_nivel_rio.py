@@ -8,7 +8,7 @@ Dato de contexto (no alimenta el índice directamente debido a la latencia de
 import os
 
 import requests
-from common.kafka_client import build_producer, run_loop
+from common.kafka_client import build_producer, logger, run_loop
 
 INTERVAL_SECONDS = int(os.environ.get("INTERVALO_NIVEL_RIO", 12 * 60 * 60))
 TOPIC_NIVEL_RIO = "inamhi-nivel-rio"
@@ -57,10 +57,10 @@ def fetch_inamhi_nivel_rio() -> list[dict]:
                 continue
 
         if payloads:
-            print(f"[+] INAMHI nivel de río: {len(payloads)} estaciones hidrológicas")
+            logger.info("INAMHI nivel de río: %s estaciones hidrológicas", len(payloads))
         return payloads
-    except Exception as e:
-        print(f"[-] Error INAMHI nivel de río: {e}")
+    except Exception:
+        logger.exception("Error INAMHI nivel de río")
         return []
 
 

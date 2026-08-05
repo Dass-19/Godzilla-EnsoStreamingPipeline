@@ -8,7 +8,7 @@ import datetime
 import os
 
 import requests
-from common.kafka_client import build_producer, run_loop
+from common.kafka_client import build_producer, logger, run_loop
 from contracts import construir_precipitacion_diaria
 
 ENDPOINT = "https://power.larc.nasa.gov/api/temporal/daily/point"
@@ -30,7 +30,7 @@ def _ventana_fechas():
 
 
 def test_connection():
-    print("[*] Probando conexión con NASA POWER...")
+    logger.info("Probando conexión con NASA POWER...")
     try:
         inicio, fin = _ventana_fechas()
         params = {
@@ -44,18 +44,18 @@ def test_connection():
         }
         response = requests.get(ENDPOINT, params=params, timeout=10)
         if response.status_code == 200:
-            print("[+] Conexión exitosa con NASA POWER (Status 200)")
+            logger.info("Conexión exitosa con NASA POWER (Status 200)")
             return True
         else:
-            print(f"[-] Error de conexión con NASA POWER: HTTP {response.status_code}")
+            logger.error("Error de conexión con NASA POWER: HTTP %s", response.status_code)
             return False
-    except Exception as e:
-        print(f"[-] Fallo de conexión con NASA POWER: {e}")
+    except Exception:
+        logger.exception("Fallo de conexión con NASA POWER")
         return False
 
 
 def ingest_data():
-    print("[*] Descargando datos de impactos locales de El Niño desde NASA POWER...")
+    logger.info("Descargando datos de impactos locales de El Niño desde NASA POWER...")
     # T2M: Temp a 2m, PRECTOTCORR: Lluvia corregida, WS10M: Viento a 10m
     # WD10M: Dirección del viento, ALLSKY_SFC_SW_DWN: Radiación Solar, PS: Presión superficial
     inicio, fin = _ventana_fechas()
@@ -113,8 +113,8 @@ def ingest_data():
             },
             "data": records,
         }
-    except Exception as e:
-        print(f"[-] Error al descargar/procesar datos de NASA POWER: {e}")
+    except Exception:
+        logger.exception("Error al descargar/procesar datos de NASA POWER")
         return None
 
 

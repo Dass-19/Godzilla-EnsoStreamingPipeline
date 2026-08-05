@@ -10,14 +10,14 @@ import os
 
 import pandas as pd
 import requests
-from common.kafka_client import build_producer, run_loop
+from common.kafka_client import build_producer, logger, run_loop
 
 ENDPOINT = "https://www.cpc.ncep.noaa.gov/data/indices/ersst5.nino.mth.91-20.ascii"
 INTERVAL_SECONDS = int(os.environ.get("INTERVALO_INDICES", 60 * 60))
 
 
 def ingest_data():
-    print("[*] Descargando datos de NOAA...")
+    logger.info("Descargando datos de NOAA...")
     try:
         response = requests.get(ENDPOINT, timeout=15)
         if response.status_code != 200:
@@ -47,8 +47,8 @@ def ingest_data():
             },
             "data": records,
         }
-    except Exception as e:
-        print(f"[-] Error al descargar/procesar datos de NOAA: {e}")
+    except Exception:
+        logger.exception("Error al descargar/procesar datos de NOAA")
         return None
 
 

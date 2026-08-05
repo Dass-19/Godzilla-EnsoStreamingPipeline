@@ -24,7 +24,7 @@
         integrity="sha384-NrKB+u6Ts6AtkIhwPixiKTzgSKNblyhlk0Sohlgar9UHUBzai/sgnNNWWd291xqt"
         crossorigin="anonymous"></script>
 
-    <link rel="stylesheet" href="styles.css?v=19">
+    <link rel="stylesheet" href="styles.css?v=20">
 </head>
 
 <body>
@@ -87,6 +87,50 @@
                 (SeguraEP)</label>
             <label class="menu-label"><input type="checkbox" id="toggle-sgr-viasinundables" checked> 🚗 Vías Inundables
                 (SeguraEP)</label>
+        </div>
+    </div>
+
+    <!-- Auditoría de Logs de Producers -->
+    <div id="logs-panel-toggle" class="layer-control-container">
+        <button id="toggle-logs-panel-btn" class="btn-icon" title="Auditoría de Logs">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <line x1="10" y1="9" x2="8" y2="9"></line>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Panel de Auditoría de Logs de Producers -->
+    <div id="logs-audit-panel" class="dashboard-panel logs-audit-panel hidden">
+        <div class="panel-header-events">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:18px;">🧾</span>
+                <div>
+                    <h4 style="margin:0; font-size:14px; color:#f8fafc; font-weight:700;">Auditoría de Logs</h4>
+                    <span style="font-size:11px; color:#94a3b8;">Logs de producers archivados en HDFS</span>
+                </div>
+            </div>
+            <button id="btn-close-logs-panel" class="btn-icon"
+                style="background:transparent; border:none; color:#94a3b8; font-size:18px; cursor:pointer; width:auto; height:auto; padding:0;">&times;</button>
+        </div>
+        <div class="logs-filters">
+            <select id="logs-select-producer" class="parroquia-select">
+                <option value="">-- Producer --</option>
+            </select>
+            <select id="logs-select-nivel" class="parroquia-select">
+                <option value="">Todos los niveles</option>
+                <option value="ERROR">ERROR</option>
+                <option value="WARNING">WARNING</option>
+                <option value="INFO">INFO</option>
+            </select>
+        </div>
+        <div id="logs-audit-list" class="events-scroll-container">
+            <div class="empty-state" style="color:#64748b; font-size:12px; text-align:center; padding:15px 0;">
+                Selecciona un producer para ver sus logs.</div>
         </div>
     </div>
 
@@ -473,7 +517,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"
         integrity="sha384-82q0nm29xZzIo5BMtDYnh2/NxeO6FoaK1S/0nF84w3cEsqbBfun3JdMyDVYWfVY5"
         crossorigin="anonymous"></script>
-    <script type="module" src="js/main.js?v=18"></script>
+    <script type="module" src="js/main.js?v=20"></script>
 </body>
 
 </html>

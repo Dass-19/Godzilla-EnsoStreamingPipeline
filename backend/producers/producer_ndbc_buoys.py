@@ -7,7 +7,7 @@ import datetime
 import os
 
 import requests
-from common.kafka_client import build_producer, run_loop
+from common.kafka_client import build_producer, logger, run_loop
 
 INTERVAL_SECONDS = int(os.environ.get("INTERVALO_INDICES", 60 * 60))
 
@@ -48,13 +48,13 @@ def fetch_buoy_data(buoy):
             "current_velocity_kmh": current.get("ocean_current_velocity"),
             "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
         }
-    except Exception as e:
-        print(f"[-] Error obteniendo datos para la boya {buoy['id']}: {e}")
+    except Exception:
+        logger.exception("Error obteniendo datos para la boya %s", buoy["id"])
         return None
 
 
 def ingest_data():
-    print("[*] Obteniendo datos en tiempo real de boyas oceánicas...")
+    logger.info("Obteniendo datos en tiempo real de boyas oceánicas...")
     records = []
     for buoy in BUOYS:
         data = fetch_buoy_data(buoy)

@@ -10,9 +10,8 @@ Obtiene TODAS las variables oceanográficas clave para la predicción de El Niñ
 
 import datetime
 import os
-import traceback
 
-from common.kafka_client import build_producer, run_loop
+from common.kafka_client import build_producer, logger, run_loop
 
 INTERVAL_SECONDS = int(os.environ.get("INTERVALO_INDICES", 60 * 60))
 
@@ -26,12 +25,12 @@ DATASETS = {
 
 
 def test_connection():
-    print("[*] Iniciando sesión en Copernicus Marine Service con credenciales...")
+    logger.info("Iniciando sesión en Copernicus Marine Service con credenciales...")
     usuario = os.environ.get("COPERNICUS_USERNAME")
     password = os.environ.get("COPERNICUS_PASSWORD")
     if not usuario or not password:
-        print(
-            "[-] Faltan COPERNICUS_USERNAME / COPERNICUS_PASSWORD en el entorno. "
+        logger.error(
+            "Faltan COPERNICUS_USERNAME / COPERNICUS_PASSWORD en el entorno. "
             "Definilas en backend/env/.env (ver .env.example)."
         )
         return False
@@ -41,20 +40,20 @@ def test_connection():
         import copernicusmarine
 
         copernicusmarine.login(username=usuario, password=password)
-        print("[+] Login exitoso en Copernicus Marine")
+        logger.info("Login exitoso en Copernicus Marine")
         return True
     except ImportError:
-        print(
-            "[-] El paquete 'copernicusmarine' no está instalado. Instálalo con 'pip install copernicusmarine'"
+        logger.error(
+            "El paquete 'copernicusmarine' no está instalado. Instálalo con 'pip install copernicusmarine'"
         )
         return False
-    except Exception as e:
-        print(f"[-] Fallo en el login de Copernicus: {e}")
+    except Exception:
+        logger.exception("Fallo en el login de Copernicus")
         return False
 
 
 def ingest_data():
-    print("[*] Extrayendo variables predictivas para El Niño de Copernicus Marine...")
+    logger.info("Extrayendo variables predictivas para El Niño de Copernicus Marine...")
     try:
         # pyrefly: ignore [missing-import]
         import copernicusmarine
@@ -66,7 +65,7 @@ def ingest_data():
         records_by_date = {}
 
         # 1. Variables 2D (Altura del mar y Capa de Mezcla)
-        print(f"[*] Obteniendo ZOS y MLOTST de {DATASETS['2D']}")
+        logger.info("Obteniendo ZOS y MLOTST de %s", DATASETS["2D"])
         ds_2d = copernicusmarine.open_dataset(dataset_id=DATASETS["2D"])
         subset_2d = ds_2d[["zos", "mlotst"]].sel(latitude=lat_slice, longitude=lon_slice)
         recent_times = subset_2d.time[-5:].values
@@ -83,7 +82,7 @@ def ingest_data():
             }
 
         # 2. Temperatura (SST / Thetao) a profundidad 0
-        print(f"[*] Obteniendo THETAO (Temperatura) de {DATASETS['SST']}")
+        logger.info("Obteniendo THETAO (Temperatura) de %s", DATASETS["SST"])
         ds_sst = copernicusmarine.open_dataset(dataset_id=DATASETS["SST"])
         subset_sst = ds_sst["thetao"].sel(latitude=lat_slice, longitude=lon_slice).isel(depth=0)
         for t in recent_times:
@@ -95,7 +94,7 @@ def ingest_data():
                 )
 
         # 3. Salinidad (SO) a profundidad 0
-        print(f"[*] Obteniendo SO (Salinidad) de {DATASETS['SAL']}")
+        logger.info("Obteniendo SO (Salinidad) de %s", DATASETS["SAL"])
         ds_sal = copernicusmarine.open_dataset(dataset_id=DATASETS["SAL"])
         subset_sal = ds_sal["so"].sel(latitude=lat_slice, longitude=lon_slice).isel(depth=0)
         for t in recent_times:
@@ -105,7 +104,7 @@ def ingest_data():
                 records_by_date[date_str]["so_psu"] = float(subset_sal.sel(time=t).mean().values)
 
         # 4. Corrientes (UO, VO) a profundidad 0
-        print(f"[*] Obteniendo UO, VO (Corrientes) de {DATASETS['CUR']}")
+        logger.info("Obteniendo UO, VO (Corrientes) de %s", DATASETS["CUR"])
         ds_cur = copernicusmarine.open_dataset(dataset_id=DATASETS["CUR"])
         subset_cur = ds_cur[["uo", "vo"]].sel(latitude=lat_slice, longitude=lon_slice).isel(depth=0)
         for t in recent_times:
@@ -137,15 +136,14 @@ def ingest_data():
             "data": list(records_by_date.values()),
         }
 
-    except Exception as e:
-        print(f"[-] Error al descargar/procesar datos de Copernicus: {e}")
-        traceback.print_exc()
+    except Exception:
+        logger.exception("Error al descargar/procesar datos de Copernicus")
         return None
 
 
 def run_producer():
     if not test_connection():
-        print("[-] Copernicus no disponible; el productor no arranca el loop.")
+        logger.error("Copernicus no disponible; el productor no arranca el loop.")
         return
 
     producer = build_producer()

@@ -10,7 +10,7 @@ en 2021.
 import os
 
 import requests
-from common.kafka_client import build_producer, run_loop
+from common.kafka_client import build_producer, logger, run_loop
 from contracts import TOPIC_SST_SEMANAL, construir_sst_semanal
 
 INTERVAL_SECONDS = int(os.environ.get("INTERVALO_SST_SEMANAL", 12 * 60 * 60))
@@ -67,22 +67,23 @@ def fetch_sst_semanal() -> list[dict]:
     try:
         resp = requests.get(URL_CPC_SEMANAL, timeout=12)
         if not resp.ok:
-            print(f"[-] NOAA CPC semanal respondió {resp.status_code}")
+            logger.error("NOAA CPC semanal respondió %s", resp.status_code)
             return []
 
         registros = parse_wksst9120(resp.text)
         if registros:
             mas_reciente = registros[-1]
-            print(
-                f"[+] NOAA SST semanal ({mas_reciente['fecha_semana']}): "
-                f"Niño 1+2 SSTA={mas_reciente['anomalia_nino12_c']} °C"
+            logger.info(
+                "NOAA SST semanal (%s): Niño 1+2 SSTA=%s °C",
+                mas_reciente["fecha_semana"],
+                mas_reciente["anomalia_nino12_c"],
             )
             return [mas_reciente]
 
-        print("[-] NOAA CPC semanal: sin registros parseables")
+        logger.error("NOAA CPC semanal: sin registros parseables")
         return []
-    except Exception as e:
-        print(f"[-] Error consultando NOAA CPC semanal: {e}")
+    except Exception:
+        logger.exception("Error consultando NOAA CPC semanal")
         return []
 
 

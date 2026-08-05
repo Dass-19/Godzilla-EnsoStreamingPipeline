@@ -96,6 +96,18 @@ Varios productores raspan fuentes públicas frágiles (PDF trimestral de INOCAR,
 CELEC y SNGR) y **degradan explícitamente**: o caen a un modelo documentado, o devuelven lista vacía.
 Ninguno fabrica datos — hay un test que falla si algún `producer_*.py` vuelve a importar `random`.
 
+Todo mensaje que pase por el `logger` compartido de `kafka_client.py` (`"enso.producer"`) también se
+sube a HDFS: `HandlerHDFS`, un `logging.Handler` sin threads propios, bufferiza líneas en memoria y las
+vuelca cada `INTERVALO_FLUSH_LOGS_S` (default 60s) a
+`enso_data/raw/producer_logs/producer=<nombre>/fecha=YYYY-MM-DD/<epoch_ms>.log`. Escribe un archivo
+nuevo por flush en vez de hacer `append`, porque no hay garantía de que el clúster tenga habilitado el
+append de WebHDFS. El nombre del producer sale de `sys.argv[0]` (`producer_noaa.py` → `noaa`), así que
+cada script no tiene que identificarse a mano. Un fallo al escribir a HDFS nunca tumba el producer
+(`try/except` silencioso, mismo principio que ya aplicaba `producer_seguraep.py`). Como
+`producer_seguraep.py` no importa `kafka_client.py` (no usa Kafka), importa el mismo `logger`
+explícitamente para no quedar fuera de la auditoría. El handler solo se registra si `WEBHDFS_URL` está
+en el entorno, para no romper `pytest` ni la ejecución local sin HDFS levantado.
+
 ### Streaming (`backend/spark/`)
 [spark_streaming_job.py](backend/spark/spark_streaming_job.py) mantiene el mapa `topic → nombre_fuente`
 y vuelca cada mensaje **sin parsear** (`json_str` + `kafka_timestamp`) a
@@ -137,14 +149,21 @@ endpoint REST normalizado (`/api/eventos/sgr`, `/api/capas/parroquias`, `/api/ca
 retornando respuestas estandarizadas bajo el modelo `RespuestaAPI`. `/api/escenario/simular` recalcula el índice en memoria sin
 tocar HDFS. `/api/clima/punto` es un proxy de OpenWeatherMap.
 
+`/api/logs/productores` y `/api/logs` auditan lo que `HandlerHDFS` sube desde los producers (ver
+Ingesta). A diferencia del resto de la API, que solo lee parquet, estos leen texto plano: por eso
+`leer_texto_particiones()` y `parsear_linea_log()` viven en `hdfs_client.py` en vez de en `app.py` —
+así el parseo no depende de `fastapi`/`pydantic`, que CI no instala para correr los tests (solo
+`requirements-dev.txt` + `backend/producers/requirements.txt`).
+
 ### Frontend (`frontend/`)
 HTML/CSS/JS sin build step ni gestor de paquetes: MapLibre GL, Chart.js y Turf por CDN, con versión
 exacta y `integrity` (SRI). Se sirve como estático desde la propia API en `/dashboard`, y el objeto
 `CONFIG` en [config.js](frontend/js/config.js) usa rutas **relativas** (`/api/`).
 Utiliza Turf.js (`turf.booleanPointInPolygon`) para filtrar geométricamente los eventos de lluvia SGR
 dentro del polígono de la parroquia activa.
-`index.html` cachebustea con querystring (`js/main.js?v=16`, `styles.css?v=19`) — **incrementar ese número
-al editar** o el navegador servirá la versión vieja. Los 9 módulos ES bajo `js/` se importan entre sí con
-rutas relativas (`import ... from './dashboard.js?v=16'`) que llevan el **mismo** `?v=` que `main.js`:
-bumpear solo `main.js?v=` no invalida esos imports internos, porque el navegador los cachea por URL
-completa (incluida la querystring) — hay que bumpear los dos a la vez.
+`index.html` cachebustea con querystring (`js/main.js?v=20`, `styles.css?v=20`) — **incrementar ese número
+al editar** o el navegador servirá la versión vieja. Los 10 módulos ES bajo `js/` (incluye
+`ui/logs-panel.js`, el panel de auditoría de `/api/logs`) se importan entre sí con rutas relativas
+(`import ... from './dashboard.js?v=20'`) que llevan el **mismo** `?v=` que `main.js`: bumpear solo
+`main.js?v=` no invalida esos imports internos, porque el navegador los cachea por URL completa
+(incluida la querystring) — hay que bumpear los dos (y `styles.css?v=`) a la vez.

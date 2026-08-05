@@ -7,7 +7,7 @@ import datetime
 import os
 
 import requests
-from common.kafka_client import build_producer, run_loop
+from common.kafka_client import build_producer, logger, run_loop
 
 INTERVAL_SECONDS = int(os.environ.get("INTERVALO_INDICES", 60 * 60))
 
@@ -23,18 +23,18 @@ def fetch_pressure(lat, lon):
         if response.status_code == 200:
             data = response.json()
             return data["current"]["pressure_msl"]
-    except Exception as e:
-        print(f"[-] Error obteniendo datos para {lat},{lon}: {e}")
+    except Exception:
+        logger.exception("Error obteniendo datos para %s,%s", lat, lon)
     return None
 
 
 def ingest_data():
-    print("[*] Calculando Índice de Oscilación del Sur (SOI)...")
+    logger.info("Calculando Índice de Oscilación del Sur (SOI)...")
     tahiti_mslp = fetch_pressure(TAHITI["lat"], TAHITI["lon"])
     darwin_mslp = fetch_pressure(DARWIN["lat"], DARWIN["lon"])
 
     if tahiti_mslp is None or darwin_mslp is None:
-        print("[-] Falló la extracción de presión para SOI.")
+        logger.error("Falló la extracción de presión para SOI.")
         return
 
     soi_proxy = tahiti_mslp - darwin_mslp

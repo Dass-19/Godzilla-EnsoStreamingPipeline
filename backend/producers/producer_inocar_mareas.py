@@ -22,7 +22,7 @@ from io import BytesIO
 
 import pdfplumber
 import requests
-from common.kafka_client import build_producer, run_loop
+from common.kafka_client import build_producer, logger, run_loop
 from contracts import construir_marea
 
 TOPIC = "mareas-inocar"
@@ -216,8 +216,8 @@ def cargar_historico(anio_inicio: int = 2022) -> list[dict]:
                         "altura_marea_m": round(altura, 3),
                     }
                 )
-        except Exception as error:
-            print(f"[salta] {anio}-T{trimestre}: {error}")
+        except Exception:
+            logger.exception("Salta %s-T%s", anio, trimestre)
 
     return eventos
 

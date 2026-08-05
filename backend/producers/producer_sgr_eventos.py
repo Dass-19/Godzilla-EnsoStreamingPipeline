@@ -9,13 +9,13 @@ import os
 import urllib.parse
 import urllib.request
 
-from common.kafka_client import build_producer, run_loop
+from common.kafka_client import build_producer, logger, run_loop
 
 INTERVAL_SECONDS = int(os.environ.get("INTERVALO_ALERTAS", 15 * 60))
 
 
 def fetch_sgr_events():
-    print("[*] Descargando eventos de lluvia (SGR)...")
+    logger.info("Descargando eventos de lluvia (SGR)...")
 
     # Filtramos eventos solo para Guayaquil, Daule, Samborondón y Durán
     where_clause = "canton IN ('GUAYAQUIL', 'DAULE', 'SAMBORONDON', 'DURAN')"
@@ -27,8 +27,8 @@ def fetch_sgr_events():
             data = json.loads(response.read().decode("utf-8"))
 
             return data
-    except Exception as e:
-        print(f"[-] Error descargando eventos SGR: {e}")
+    except Exception:
+        logger.exception("Error descargando eventos SGR")
 
 
 def run_producer():

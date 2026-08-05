@@ -12,7 +12,7 @@ import os
 
 import certifi
 import requests
-from common.kafka_client import build_producer, run_loop
+from common.kafka_client import build_producer, logger, run_loop
 from contracts import TOPIC_MAREA_OBSERVADA, construir_marea_observada
 
 INTERVAL_SECONDS = int(os.environ.get("INTERVALO_MAREA_OBS", 15 * 60))
@@ -48,8 +48,8 @@ def fetch_marea_ioc(url: str, estacion_id: str) -> dict | None:
             sensor="radar",
             fecha_utc=str(fecha) if fecha else None,
         )
-    except Exception as e:
-        print(f"[-] Error consultando marea IOC ({estacion_id}): {e}")
+    except Exception:
+        logger.exception("Error consultando marea IOC (%s)", estacion_id)
         return None
 
 
@@ -57,16 +57,16 @@ def fetch_payloads() -> list[dict]:
     # Primero intentamos la estación principal en Guayaquil (gyer)
     payload = fetch_marea_ioc(URL_IOC_GYER, "gyer")
     if payload:
-        print(f"[+] Marea observada (gyer): {payload['altura_marea_m']} m")
+        logger.info("Marea observada (gyer): %s m", payload["altura_marea_m"])
         return [payload]
 
     # Respaldo: estación Puná
     payload = fetch_marea_ioc(URL_IOC_PUNA, "puna")
     if payload:
-        print(f"[+] Marea observada (respaldo puna): {payload['altura_marea_m']} m")
+        logger.info("Marea observada (respaldo puna): %s m", payload["altura_marea_m"])
         return [payload]
 
-    print("[-] Marea observada: sin datos disponibles")
+    logger.error("Marea observada: sin datos disponibles")
     return []
 
 
