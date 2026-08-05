@@ -1,0 +1,63 @@
+/* Página de Auditoría de Logs (logs.html): renderizado independiente del
+   dashboard de mapa (styles.css) — no es un panel superpuesto, es su propia
+   vista con scroll normal de página. */
+
+body.logs-page {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    padding: 32px 24px;
+}
+
+.logs-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    max-width: 720px;
+    width: 100%;
+    margin: 0 auto 20px;
+}
+.logs-header h1 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    background: linear-gradient(90deg, #38bdf8, #818cf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 4px;
+}
+.logs-header p {
+    font-size: 0.85rem;
+    color: #94a3b8;
+}
+.logs-back-link {
+    text-decoration: none;
+    display: inline-block;
+    width: auto;
+    flex: none;
+    white-space: nowrap;
+}
+
+.logs-main {
+    max-width: 720px;
+    width: 100%;
+    margin: 0 auto;
+}
+
+.logs-filters {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 18px;
+}
+.logs-filters select {
+    flex: 1;
+    min-width: 0;
+}
+
+.logs-list {
+    display: flex;
+    flex-direction: column;
+}
+.logs-list .event-card-item {
+    font-size: 12.5px;
+}

@@ -2,10 +2,10 @@
 // INTERACCIONES Y POPUPS DEL MAPA
 // ==========================================
 
-import { map, getSafeZonesGeoJSON } from './map-manager.js?v=20';
-import { fetchClimaPunto, fetchOpenMeteoHist, fetchEvacuationRoute } from '../api/client.js?v=20';
-import { createPopupChart, showHistoryChart } from '../components/charts.js?v=20';
-import { updateParroquiaEventsPanel } from '../ui/controls.js?v=20';
+import { map, getSafeZonesGeoJSON } from './map-manager.js?v=21';
+import { fetchClimaPunto, fetchOpenMeteoHist, fetchEvacuationRoute } from '../api/client.js?v=21';
+import { createPopupChart, showHistoryChart } from '../components/charts.js?v=21';
+import { updateParroquiaEventsPanel } from '../ui/controls.js?v=21';
 
 let currentPopup = null;
 

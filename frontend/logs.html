@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Godzilla · Auditoría de Logs</title>
+    <link rel="icon" type="image/png" href="icon.png">
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="styles.css?v=21">
+    <link rel="stylesheet" href="logs.css?v=21">
+</head>
+
+<body class="logs-page">
+    <header class="logs-header">
+        <div>
+            <h1>🧾 Auditoría de Logs</h1>
+            <p>Logs de producers archivados en HDFS</p>
+        </div>
+        <a href="/dashboard/" class="btn-secondary logs-back-link">← Volver al mapa</a>
+    </header>
+
+    <main class="logs-main">
+        <div class="logs-filters">
+            <select id="logs-select-producer" class="parroquia-select">
+                <option value="">-- Producer --</option>
+            </select>
+            <select id="logs-select-nivel" class="parroquia-select">
+                <option value="">Todos los niveles</option>
+                <option value="ERROR">ERROR</option>
+                <option value="WARNING">WARNING</option>
+                <option value="INFO">INFO</option>
+            </select>
+        </div>
+        <div id="logs-audit-list" class="logs-list">
+            <div class="empty-state" style="color:#64748b; font-size:13px; text-align:center; padding:30px 0;">
+                Selecciona un producer para ver sus logs.</div>
+        </div>
+    </main>
+
+    <script type="module" src="js/logs.js?v=21"></script>
+</body>
+
+</html>

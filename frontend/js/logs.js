@@ -1,9 +1,9 @@
 // ==========================================
-// PANEL DE AUDITORÍA DE LOGS DE PRODUCERS
+// PÁGINA DE AUDITORÍA DE LOGS DE PRODUCERS (logs.html)
 // ==========================================
 
-import { mensajeVacio } from '../config.js?v=20';
-import { fetchLogProducers, fetchLogs } from '../api/client.js?v=20';
+import { mensajeVacio } from './config.js?v=21';
+import { fetchLogProducers, fetchLogs } from './api/client.js?v=21';
 
 function nivelClase(nivel) {
     if (nivel === 'ERROR') return 'nivel-error';
@@ -75,27 +75,13 @@ async function poblarProducers() {
             select.appendChild(opt);
         });
     } catch {
-        // Aún no hay logs de ningún producer en HDFS: el select queda con solo
-        // la opción vacía, sin romper el resto del panel.
+        // Aún no hay logs de ningún producer en HDFS: el select queda con
+        // solo la opción vacía, sin romper el resto de la página.
     }
 }
 
-export function initLogsPanel() {
-    document.getElementById('toggle-logs-panel-btn')?.addEventListener('click', () => {
-        const panel = document.getElementById('logs-audit-panel');
-        const select = document.getElementById('logs-select-producer');
-        if (!panel) return;
-        const seAbre = panel.classList.contains('hidden');
-        panel.classList.toggle('hidden');
-        if (seAbre && select && select.options.length <= 1) {
-            poblarProducers();
-        }
-    });
-
-    document.getElementById('btn-close-logs-panel')?.addEventListener('click', () => {
-        document.getElementById('logs-audit-panel')?.classList.add('hidden');
-    });
-
+document.addEventListener('DOMContentLoaded', () => {
+    poblarProducers();
     document.getElementById('logs-select-producer')?.addEventListener('change', cargarLogs);
     document.getElementById('logs-select-nivel')?.addEventListener('change', cargarLogs);
-}
+});

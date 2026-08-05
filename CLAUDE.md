@@ -161,9 +161,19 @@ exacta y `integrity` (SRI). Se sirve como estático desde la propia API en `/das
 `CONFIG` en [config.js](frontend/js/config.js) usa rutas **relativas** (`/api/`).
 Utiliza Turf.js (`turf.booleanPointInPolygon`) para filtrar geométricamente los eventos de lluvia SGR
 dentro del polígono de la parroquia activa.
-`index.html` cachebustea con querystring (`js/main.js?v=20`, `styles.css?v=20`) — **incrementar ese número
-al editar** o el navegador servirá la versión vieja. Los 10 módulos ES bajo `js/` (incluye
-`ui/logs-panel.js`, el panel de auditoría de `/api/logs`) se importan entre sí con rutas relativas
-(`import ... from './dashboard.js?v=20'`) que llevan el **mismo** `?v=` que `main.js`: bumpear solo
+`index.html` cachebustea con querystring (`js/main.js?v=21`, `styles.css?v=21`) — **incrementar ese número
+al editar** o el navegador servirá la versión vieja. Los 9 módulos ES bajo `js/` (más los que cuelgan de
+`js/api/`, `js/components/`, `js/map/`, `js/ui/`) se importan entre sí con rutas relativas
+(`import ... from './dashboard.js?v=21'`) que llevan el **mismo** `?v=` que `main.js`: bumpear solo
 `main.js?v=` no invalida esos imports internos, porque el navegador los cachea por URL completa
 (incluida la querystring) — hay que bumpear los dos (y `styles.css?v=`) a la vez.
+
+La auditoría de `/api/logs` **no** vive dentro de `index.html`: es una página aparte,
+[logs.html](frontend/logs.html), con su propio CSS ([logs.css](frontend/logs.css)) y su propio módulo
+([js/logs.js](frontend/js/logs.js)) — deliberadamente separada del dashboard de mapa en vez de un panel
+superpuesto, para que un problema de renderizado en una vista no arrastre a la otra. Comparte con
+`index.html` solo lo genérico (`styles.css`, `api/client.js`, `config.js`, y las clases de fila
+`.event-card-item`/`.nivel-*`). `logs.html` es servida igual que `index.html` por el mismo
+`StaticFiles(html=True)` en `/dashboard` (queda en `/dashboard/logs.html`), así que también cachebustea
+con su propio `?v=` — bumpearlo junto con `logs.js` cuando se edite, no hace falta tocar el `?v=` de
+`index.html`/`main.js` si no se los toca.
