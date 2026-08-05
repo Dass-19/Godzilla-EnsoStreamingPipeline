@@ -48,7 +48,7 @@ def fetch_caudal_geoglows() -> list[dict]:
                 )
                 if isinstance(flow_med, list) and flow_med:
                     caudal_val = float(flow_med[0])
-                elif isinstance(flow_med, (int, float)):
+                elif isinstance(flow_med, int | float):
                     caudal_val = float(flow_med)
         except Exception:
             pass

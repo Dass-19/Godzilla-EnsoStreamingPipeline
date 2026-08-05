@@ -20,7 +20,7 @@ import logging
 import os
 import time
 from collections.abc import Callable, Iterable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
@@ -59,7 +59,7 @@ def send_record(
         key: str | None = None
         ) -> None:
     record = dict(record)
-    record.setdefault("ingested_at", datetime.now(timezone.utc).isoformat())
+    record.setdefault("ingested_at", datetime.now(UTC).isoformat())
     future = producer.send(topic, key=key, value=record)
     try:
         metadata = future.get(timeout=10)

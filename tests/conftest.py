@@ -38,7 +38,7 @@ except ImportError:
     sys.modules["kafka.errors"] = _errores
 
 try:
-    import pyspark
+    import pyspark  # noqa: F401
 except ImportError:
     _pyspark = types.ModuleType("pyspark")
     _sql = types.ModuleType("pyspark.sql")
