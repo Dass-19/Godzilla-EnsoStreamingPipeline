@@ -73,14 +73,21 @@ class HandlerHDFS(logging.Handler):
         return self._client
 
     def emit(self, record: logging.LogRecord) -> None:
-        self._buffer.append(self.format(record))
-        # ponytail: buffer acotado a 2000 líneas (~ evita crecer sin límite si
-        # HDFS está caído por mucho tiempo); si se necesita retener más,
-        # habría que persistir a disco local en vez de solo memoria.
-        if len(self._buffer) > 2000:
-            del self._buffer[:-2000]
-        if time.monotonic() - self._ultimo_flush >= INTERVALO_FLUSH_LOGS_S:
-            self.flush()
+        # Sin este try/except, un `logger.info("%s", ...)` con argumentos mal
+        # formados haría que `format()` lance dentro de `emit()`, y logging no
+        # lo atrapa: la excepción saldría por el `logger.info()` del productor
+        # y lo tumbaría. Justo lo que este handler promete no hacer.
+        try:
+            self._buffer.append(self.format(record))
+            # ponytail: buffer acotado a 2000 líneas (~ evita crecer sin límite si
+            # HDFS está caído por mucho tiempo); si se necesita retener más,
+            # habría que persistir a disco local en vez de solo memoria.
+            if len(self._buffer) > 2000:
+                del self._buffer[:-2000]
+            if time.monotonic() - self._ultimo_flush >= INTERVALO_FLUSH_LOGS_S:
+                self.flush()
+        except Exception:
+            self.handleError(record)
 
     def flush(self) -> None:
         if not self._buffer:
@@ -101,8 +108,10 @@ class HandlerHDFS(logging.Handler):
             self._ultimo_flush = time.monotonic()
 
 
+_handler_hdfs: HandlerHDFS | None = None
 if os.environ.get("WEBHDFS_URL"):
-    logger.addHandler(HandlerHDFS())
+    _handler_hdfs = HandlerHDFS()
+    logger.addHandler(_handler_hdfs)
 
 
 def build_producer(bootstrap_servers: str = KAFKA_BOOTSTRAP) -> KafkaProducer:
@@ -127,18 +136,26 @@ def send_record(
         topic: str,
         record: dict,
         key: str | None = None
-        ) -> None:
+        ) -> bool:
+    """Publica un registro. Devuelve si Kafka lo confirmó."""
     record = dict(record)
     record.setdefault("ingested_at", datetime.now(UTC).isoformat())
     future = producer.send(topic, key=key, value=record)
     try:
         metadata = future.get(timeout=10)
-        logger.info(
+        # DEBUG y no INFO: con `HandlerHDFS` cada línea termina en HDFS, y hay
+        # fuentes que publican decenas de registros por ciclo (estaciones
+        # INAMHI, boyas NDBC, eventos SGR). El detalle de partition/offset sirve
+        # para depurar Kafka, no para auditar la ingesta: para eso está el
+        # resumen por ciclo de `run_loop`. Se recupera bajando el nivel a DEBUG.
+        logger.debug(
             "topic=%s partition=%s offset=%s key=%s",
             metadata.topic, metadata.partition, metadata.offset, key,
         )
+        return True
     except KafkaError:
         logger.exception("fallo al publicar en topic=%s key=%s", topic, key)
+        return False
 
 
 def run_loop(
@@ -155,15 +172,39 @@ def run_loop(
     )
     while True:
         start = time.monotonic()
+        obtenidos = 0
+        publicados = 0
         try:
             for record in fetch_fn():
+                obtenidos += 1
                 key = key_fn(record) if key_fn else None
-                send_record(producer, topic, record, key=key)
+                if send_record(producer, topic, record, key=key):
+                    publicados += 1
         except Exception:
             logger.exception(
                 "error en ciclo de fetch/publish para topic=%s",
                 topic,
             )
+
+        # Resumen por ciclo: es el único rastro que TODO productor deja sí o sí,
+        # incluso los que no loguean nada propio. Un ciclo vacío es la
+        # degradación documentada de varias fuentes (devuelven lista vacía en
+        # vez de inventar datos), así que va como WARNING para que se distinga
+        # de un ciclo sano al filtrar por nivel en la auditoría.
+        if obtenidos:
+            logger.info(
+                "ciclo topic=%s obtenidos=%d publicados=%d",
+                topic, obtenidos, publicados,
+            )
+        else:
+            logger.warning("ciclo sin registros topic=%s", topic)
+
+        # El ciclo es la unidad natural de flush. Sin esto el buffer espera al
+        # primer emit del ciclo siguiente, y hay productores que duermen 12h
+        # (INTERVALO_SST_SEMANAL, INTERVALO_NIVEL_RIO): sus logs no aparecerían
+        # en la auditoría hasta medio día después.
+        if _handler_hdfs:
+            _handler_hdfs.flush()
 
         elapsed = time.monotonic() - start
         sleep_for = max(0, interval_seconds - elapsed)

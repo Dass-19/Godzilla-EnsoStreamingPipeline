@@ -29,31 +29,6 @@ def _ventana_fechas():
     return desde.strftime("%Y%m%d"), hoy.strftime("%Y%m%d")
 
 
-def test_connection():
-    logger.info("Probando conexión con NASA POWER...")
-    try:
-        inicio, fin = _ventana_fechas()
-        params = {
-            "parameters": "T2M",
-            "community": "AG",
-            "longitude": LONGITUD_GUAYAQUIL,
-            "latitude": LATITUD_GUAYAQUIL,
-            "start": inicio,
-            "end": fin,
-            "format": "JSON",
-        }
-        response = requests.get(ENDPOINT, params=params, timeout=10)
-        if response.status_code == 200:
-            logger.info("Conexión exitosa con NASA POWER (Status 200)")
-            return True
-        else:
-            logger.error("Error de conexión con NASA POWER: HTTP %s", response.status_code)
-            return False
-    except Exception:
-        logger.exception("Fallo de conexión con NASA POWER")
-        return False
-
-
 def ingest_data():
     logger.info("Descargando datos de impactos locales de El Niño desde NASA POWER...")
     # T2M: Temp a 2m, PRECTOTCORR: Lluvia corregida, WS10M: Viento a 10m
@@ -71,6 +46,7 @@ def ingest_data():
     try:
         response = requests.get(ENDPOINT, params=params, timeout=15)
         if response.status_code != 200:
+            logger.error("NASA POWER respondió %s", response.status_code)
             return None
 
         raw_data = response.json()
@@ -95,6 +71,11 @@ def ingest_data():
                             surface_pressure_kPa=params_data.get("PS", {}).get(date_str, -999),
                         )
                     )
+
+        if not records:
+            logger.error("NASA POWER: respuesta sin registros diarios")
+        else:
+            logger.info("NASA POWER: %s registros diarios", len(records))
 
         return {
             "metadata": {

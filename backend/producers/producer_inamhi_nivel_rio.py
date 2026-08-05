@@ -23,6 +23,7 @@ def fetch_inamhi_nivel_rio() -> list[dict]:
     try:
         resp = requests.get(URL_ESTACIONES_HIDRO, timeout=10)
         if not resp.ok:
+            logger.error("INAMHI nivel de río: catálogo respondió %s", resp.status_code)
             return []
         cat = resp.json()
 
@@ -54,10 +55,13 @@ def fetch_inamhi_nivel_rio() -> list[dict]:
                         }
                     )
             except Exception:
+                logger.warning("INAMHI nivel de río: falla en estación %s", id_est)
                 continue
 
         if payloads:
             logger.info("INAMHI nivel de río: %s estaciones hidrológicas", len(payloads))
+        else:
+            logger.error("INAMHI nivel de río: ninguna estación devolvió datos")
         return payloads
     except Exception:
         logger.exception("Error INAMHI nivel de río")

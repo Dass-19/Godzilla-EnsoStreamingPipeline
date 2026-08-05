@@ -81,3 +81,12 @@ def test_flush_no_propaga_si_hdfs_falla_y_conserva_el_buffer():
     handler.flush()  # no debe lanzar
 
     assert handler._buffer == ["linea 1"]
+
+
+def test_emit_no_propaga_si_el_formato_es_invalido():
+    """Un log mal formado no debe tumbar al productor que lo emitió."""
+    handler = HandlerHDFS(nombre_producer="noaa")
+    handler._client = _ClienteFake()
+    # Faltan argumentos para el %s -> format() lanza dentro de emit().
+    handler.emit(_record("faltan args %s %s", ("solo_uno",)))
+    assert handler._buffer == []

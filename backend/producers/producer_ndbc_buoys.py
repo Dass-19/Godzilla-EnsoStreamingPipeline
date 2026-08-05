@@ -36,6 +36,8 @@ def fetch_buoy_data(buoy):
         current = data.get("current", {})
 
         water_temp = current.get("sea_surface_temperature")
+        if water_temp is None:
+            logger.warning("Boya %s sin SST disponible", buoy["id"])
 
         return {
             "buoy_id": buoy["id"],
@@ -60,6 +62,10 @@ def ingest_data():
         data = fetch_buoy_data(buoy)
         if data:
             records.append(data)
+        else:
+            logger.warning("Boya %s omitida: sin datos", buoy["id"])
+
+    logger.info("Boyas oceánicas: %s de %s con datos", len(records), len(BUOYS))
 
     if not records:
         return None

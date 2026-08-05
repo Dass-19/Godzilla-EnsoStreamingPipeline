@@ -1296,7 +1296,12 @@ def logs_productores():
     },
 )
 def logs_productor(
-    producer: str = Query(..., description="Nombre del producer (ej: noaa)", example="noaa"),
+    # El patrón no es cosmético: `producer` se concatena a una ruta HDFS, así
+    # que sin acotarlo un `..` permitiría listar directorios arbitrarios del
+    # clúster. Los nombres reales salen de `sys.argv[0]` (ver HandlerHDFS).
+    producer: str = Query(
+        ..., pattern="^[a-z0-9_]+$", description="Nombre del producer (ej: noaa)", example="noaa"
+    ),
     desde: date | None = Query(
         None, description="Fecha inicial de la consulta (YYYY-MM-DD)", example="2026-08-01"
     ),
@@ -1304,10 +1309,10 @@ def logs_productor(
         None, description="Fecha final de la consulta (YYYY-MM-DD)", example="2026-08-05"
     ),
     nivel: str | None = Query(
-        None, pattern="^(INFO|WARNING|ERROR)$", description="Filtra por nivel exacto"
+        None, pattern="^(DEBUG|INFO|WARNING|ERROR|CRITICAL)$", description="Filtra por nivel exacto"
     ),
     max_dias: int = Query(
-        30, ge=1, le=90, description="Tope de particiones diarias a leer (máx 90)", example=30
+        7, ge=1, le=90, description="Tope de particiones diarias a leer (máx 90)", example=7
     ),
     limite: int = Query(
         200, ge=1, le=1000, description="Tope de líneas a devolver (más recientes primero)"

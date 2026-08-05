@@ -23,7 +23,7 @@ import os
 import re
 
 import requests
-from common.kafka_client import build_producer, run_loop
+from common.kafka_client import build_producer, logger, run_loop
 from contracts import construir_embalse
 
 TOPIC = "nivel-embalse-celec"
@@ -157,6 +157,7 @@ def fetch_nivel_embalse() -> list[dict]:
         posts = resp.json()
 
     except Exception:
+        logger.exception("Error consultando la API de CELEC")
         return []
 
     registros = []
@@ -177,6 +178,16 @@ def fetch_nivel_embalse() -> list[dict]:
                 nivel_maximo_msnm=datos.get("nivel_maximo_msnm"),
             )
         )
+
+    # Los dos conteos por separado, no solo el final: esta fuente extrae la cota
+    # con regex sobre notas de prensa (la más frágil del pipeline). Si CELEC
+    # cambia la redacción, `posts` sigue llegando lleno y `registros` se va a
+    # cero — sin este contraste, ese modo de falla es idéntico a "no hubo
+    # boletines nuevos".
+    if registros:
+        logger.info("CELEC: %s posts, %s con cota extraída", len(posts), len(registros))
+    else:
+        logger.error("CELEC: %s posts pero ninguno con cota extraíble", len(posts))
 
     return registros
 

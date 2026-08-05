@@ -240,6 +240,15 @@ def fetch_marea() -> list[dict]:
         eventos = _cache_eventos[clave_cache]
         resultado = _interpolar_altura(eventos, ahora)
         if resultado is None:
+            # El conteo de eventos distingue las dos causas: 0 eventos = el PDF
+            # se descargó pero el parser no entendió nada (INOCAR cambió el
+            # layout); N eventos = el instante actual cae fuera del rango
+            # tabulado. La primera exige arreglar el parser, la segunda no.
+            logger.warning(
+                "INOCAR: sin evento que rodee el instante actual (%s eventos "
+                "parseados de %s-T%s); se usa el modelo armónico",
+                len(eventos), anio, trimestre,
+            )
             return _modelo_armonico_fallback()
 
         altura = resultado["altura_marea_m"]
@@ -247,6 +256,7 @@ def fetch_marea() -> list[dict]:
         t1, h1 = resultado["evento_siguiente"]
         es_pleamar = altura >= max(h0, h1) - 0.3
 
+        logger.info("Marea INOCAR: %s m (%s)", altura, resultado["tendencia"])
         return [
             construir_marea(
                 altura_m=altura,
@@ -256,6 +266,12 @@ def fetch_marea() -> list[dict]:
             )
         ]
     except Exception:
+        # El payload ya distingue el respaldo por su campo `fuente`, pero eso
+        # solo se ve leyendo Kafka. Sin esta línea, un PDF que dejó de existir
+        # se ve en el log igual que un ciclo sano: el productor publicaría el
+        # modelo armónico para siempre y nada lo delataría.
+        logger.exception("INOCAR: falló el PDF de %s-T%s; se usa el modelo armónico",
+                         anio, trimestre)
         return _modelo_armonico_fallback()
 
 

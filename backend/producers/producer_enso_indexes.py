@@ -23,6 +23,7 @@ def fetch_pressure(lat, lon):
         if response.status_code == 200:
             data = response.json()
             return data["current"]["pressure_msl"]
+        logger.error("Open-Meteo presión respondió %s para %s,%s", response.status_code, lat, lon)
     except Exception:
         logger.exception("Error obteniendo datos para %s,%s", lat, lon)
     return None
@@ -46,6 +47,8 @@ def ingest_data():
         status = "Fase La Niña"
     else:
         status = "Fase Neutra"
+
+    logger.info("SOI proxy=%s estado=%s", soi_proxy, status)
 
     record = {
         "date": datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d"),

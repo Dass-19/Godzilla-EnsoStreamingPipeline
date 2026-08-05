@@ -108,6 +108,22 @@ cada script no tiene que identificarse a mano. Un fallo al escribir a HDFS nunca
 explícitamente para no quedar fuera de la auditoría. El handler solo se registra si `WEBHDFS_URL` está
 en el entorno, para no romper `pytest` ni la ejecución local sin HDFS levantado.
 
+El buffer se vuelca **al terminar cada ciclo de `run_loop`**, no solo por tiempo: hay productores que
+duermen 12h (`INTERVALO_SST_SEMANAL`) y sus logs no aparecerían en la auditoría hasta medio día
+después. `INTERVALO_FLUSH_LOGS_S` queda como red de seguridad para lo que no pasa por `run_loop`
+(`run_producers.py`). Ese mismo cierre de ciclo emite el resumen `ciclo topic=… obtenidos=N
+publicados=N` — **el único rastro que todo productor deja sí o sí**, incluso los que no loguean nada
+propio; un ciclo sin registros sale como `WARNING` para que se distinga al filtrar por nivel. Por eso
+`send_record()` loguea a **DEBUG** y no INFO: con decenas de registros por ciclo, el detalle de
+partition/offset inundaba HDFS sin aportar a la auditoría.
+
+Al escribir un productor nuevo, la regla es que **ningún camino termine en silencio**: todo `return []`,
+todo `except`, y sobre todo toda degradación a un valor por defecto tiene que dejar línea. Vale el mismo
+principio que el índice de riesgo aplica a los datos —un valor de respaldo no debe ser indistinguible de
+uno real— pero en el log: si `producer_inocar_mareas.py` cae a su modelo armónico, o `producer_gee.py`
+publica 0 mm porque no hubo imágenes GPM, eso se ve en `/api/logs`, no solo leyendo el campo `fuente`
+del payload en Kafka.
+
 ### Streaming (`backend/spark/`)
 [spark_streaming_job.py](backend/spark/spark_streaming_job.py) mantiene el mapa `topic → nombre_fuente`
 y vuelca cada mensaje **sin parsear** (`json_str` + `kafka_timestamp`) a

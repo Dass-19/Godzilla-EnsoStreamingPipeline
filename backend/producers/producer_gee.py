@@ -148,6 +148,14 @@ def ingest_data():
                     precip_stats["precipitation"] = (
                         precip_val["precipitation"] / 2.0
                     )  # aprox mm/dia
+                else:
+                    logger.warning(
+                        "GEE: GPM sin precipitación para %s, se degrada a 0 mm", date_str
+                    )
+            else:
+                logger.warning(
+                    "GEE: sin imágenes GPM para %s, precipitación se degrada a 0 mm", date_str
+                )
 
             # Extraemos valores, manejando el factor de escala de OISST (* 0.01)
             record = {"date": date_str}
@@ -170,6 +178,11 @@ def ingest_data():
             record["coast_precipitation_mm"] = precip_stats["precipitation"]
 
             records.append(record)
+
+        if not records:
+            logger.error("GEE: la ventana no devolvió imágenes OISST")
+        else:
+            logger.info("GEE: %s registros diarios procesados", len(records))
 
         return {
             "metadata": {

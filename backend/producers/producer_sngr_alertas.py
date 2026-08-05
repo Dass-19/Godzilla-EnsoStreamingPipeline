@@ -29,7 +29,7 @@ import os
 import re
 
 import requests
-from common.kafka_client import build_producer, run_loop
+from common.kafka_client import build_producer, logger, run_loop
 
 TOPIC = "alertas-sngr"
 INTERVAL_SECONDS = int(os.environ.get("INTERVALO_ALERTAS", 15 * 60))
@@ -125,7 +125,10 @@ def fetch_alertas() -> list[dict]:
         posts = resp.json()
 
     except Exception:
-        # fuente event-driven: sin conexión = "sin novedades", no se simula
+        # fuente event-driven: sin conexión = "sin novedades", no se simula.
+        # Pero "sin novedades" y "SNGR caído" no pueden verse igual en la
+        # auditoría: el payload degrada en silencio, el log no.
+        logger.exception("Error consultando la API de la SNGR")
         return []
 
     registros = []
@@ -152,6 +155,11 @@ def fetch_alertas() -> list[dict]:
                 "hora_evento": post["date_gmt"],
             }
         )
+
+    # `posts` vs `registros` separa "la SNGR no publicó nada" de "publicó, pero
+    # ningún boletín menciona Guayas ni sus cantones" (el filtro de
+    # `_detectar_ubicacion`), que es el modo de falla silencioso de esta fuente.
+    logger.info("SNGR: %s posts, %s alertas de Guayas", len(posts), len(registros))
 
     return registros
 

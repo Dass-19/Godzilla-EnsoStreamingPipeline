@@ -25,19 +25,23 @@ def fetch_marea_ioc(url: str, estacion_id: str) -> dict | None:
     try:
         resp = requests.get(url, timeout=10, verify=certifi.where())
         if not resp.ok:
+            logger.warning("IOC %s respondió %s", estacion_id, resp.status_code)
             return None
         data = resp.json()
         if not isinstance(data, list) or not data:
+            logger.warning("IOC %s: sin mediciones", estacion_id)
             return None
 
         # La última entrada trae la medición de nivel más reciente
         medicion = data[-1]
         if not isinstance(medicion, dict):
+            logger.warning("IOC %s: medición con formato inesperado", estacion_id)
             return None
 
         # slevel es la columna de altura del mareógrafo
         altura = medicion.get("slevel")
         if altura is None:
+            logger.warning("IOC %s: medición sin nivel", estacion_id)
             return None
 
         fecha = medicion.get("stime") or medicion.get("date")
@@ -61,6 +65,7 @@ def fetch_payloads() -> list[dict]:
         return [payload]
 
     # Respaldo: estación Puná
+    logger.warning("Marea observada: gyer sin dato, probando respaldo puna")
     payload = fetch_marea_ioc(URL_IOC_PUNA, "puna")
     if payload:
         logger.info("Marea observada (respaldo puna): %s m", payload["altura_marea_m"])

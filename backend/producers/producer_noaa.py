@@ -21,6 +21,7 @@ def ingest_data():
     try:
         response = requests.get(ENDPOINT, timeout=15)
         if response.status_code != 200:
+            logger.error("NOAA respondió %s", response.status_code)
             return None
 
         data_io = io.StringIO(response.text)

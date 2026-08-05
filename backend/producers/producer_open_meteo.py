@@ -28,31 +28,6 @@ def _ventana_fechas():
     return desde.isoformat(), hoy.isoformat()
 
 
-def test_connection():
-    logger.info("Probando conexión con Open-Meteo...")
-    try:
-        # Prueba ligera
-        inicio, fin = _ventana_fechas()
-        params = {
-            "latitude": LATITUD_NINO34,
-            "longitude": LONGITUD_NINO34,
-            "start_date": inicio,
-            "end_date": fin,
-            "daily": "temperature_2m_mean",
-            "timezone": "UTC",
-        }
-        response = requests.get(ENDPOINT, params=params, timeout=10)
-        if response.status_code == 200:
-            logger.info("Conexión exitosa con Open-Meteo (Status 200)")
-            return True
-        else:
-            logger.error("Error de conexión con Open-Meteo: HTTP %s", response.status_code)
-            return False
-    except Exception:
-        logger.exception("Fallo de conexión con Open-Meteo")
-        return False
-
-
 def ingest_data():
     logger.info("Descargando variables atmosféricas predictivas de Open-Meteo...")
     inicio, fin = _ventana_fechas()
@@ -67,6 +42,7 @@ def ingest_data():
     try:
         response = requests.get(ENDPOINT, params=params, timeout=15)
         if response.status_code != 200:
+            logger.error("Open-Meteo respondió %s", response.status_code)
             return None
 
         raw_data = response.json()
@@ -84,6 +60,11 @@ def ingest_data():
                     "shortwave_radiation_mj_m2": daily.get("shortwave_radiation_sum", [])[i],
                 }
                 records.append(record)
+
+        if not records:
+            logger.error("Open-Meteo: respuesta sin bloque diario")
+        else:
+            logger.info("Open-Meteo: %s registros diarios", len(records))
 
         return {
             "metadata": {

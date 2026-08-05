@@ -91,6 +91,13 @@ def download_layer(layer_info, hdfs_client, hdfs_base_path, fmt="geojson"):
                 f["properties"] = p
                 combined_features.append(f)
 
+            if not combined_features:
+                logger.error(
+                    "Parroquias: ni urbanas ni rurales devolvieron features; "
+                    "se conserva la capa anterior"
+                )
+                return False
+
             data = {"type": "FeatureCollection", "features": combined_features}
 
             hdfs_path = f"{hdfs_base_path}/{filename}.{fmt}"
@@ -99,10 +106,10 @@ def download_layer(layer_info, hdfs_client, hdfs_base_path, fmt="geojson"):
             logger.info(
                 "Guardado en HDFS: %s (%d parroquias)", hdfs_path, len(combined_features)
             )
-            return
+            return True
         except Exception:
             logger.exception("Error descargando parroquias")
-            return
+            return False
 
     base_url = layer_info["url"]
     query_url = f"{base_url}/query?where=1=1&outFields=*&outSR=4326&f={fmt}"
@@ -137,6 +144,15 @@ def download_layer(layer_info, hdfs_client, hdfs_base_path, fmt="geojson"):
         data = base_data
         data["features"] = all_features
 
+        # Sin esta guarda, una respuesta vacía (o un `{"error": {...}}` con HTTP
+        # 200, que ArcGIS devuelve al fallar) sobrescribía la capa buena con una
+        # FeatureCollection vacía —`overwrite=True` más abajo— y lo reportaba
+        # como éxito. Conservar la versión anterior es siempre mejor que borrar
+        # una capa geográfica por un fallo transitorio de la fuente.
+        if not all_features:
+            logger.error("%s: la fuente no devolvió features; se conserva la capa anterior", title)
+            return False
+
         # Post-procesamiento especial en GeoJSON
         if fmt == "geojson":
             if title == "sgr_sectores_celestes":
@@ -164,10 +180,12 @@ def download_layer(layer_info, hdfs_client, hdfs_base_path, fmt="geojson"):
         hdfs_path = f"{hdfs_base_path}/{filename}.{fmt}"
         content = json.dumps(data).encode("utf-8")
         hdfs_client.write(hdfs_path, data=content, overwrite=True)
-        logger.info("Guardado en HDFS: %s", hdfs_path)
+        logger.info("Guardado en HDFS: %s (%d features)", hdfs_path, len(all_features))
+        return True
 
     except Exception:
         logger.exception("Error descargando %s (%s)", title, fmt)
+        return False
 
 
 def run_script():
@@ -179,11 +197,19 @@ def run_script():
     client = InsecureClient(webhdfs_url, user=hdfs_user)
 
     logger.info("Iniciando descarga de capas (SeguraEP) a HDFS directamente...")
+    guardadas = 0
     for layer in LAYERS:
         for fmt in ["geojson"]:
-            download_layer(layer, client, hdfs_base_path, fmt)
+            if download_layer(layer, client, hdfs_base_path, fmt):
+                guardadas += 1
 
-    logger.info("Proceso finalizado. Capas de SeguraEP guardadas en HDFS.")
+    # Antes esta línea afirmaba "capas guardadas" incluso si las 6 habían
+    # fallado. Es un job one-shot que corre cada 6h: el resumen es lo único que
+    # se mira para saber si hace falta revisar las líneas de arriba.
+    if guardadas == len(LAYERS):
+        logger.info("Proceso finalizado: %s/%s capas guardadas.", guardadas, len(LAYERS))
+    else:
+        logger.error("Proceso finalizado: solo %s/%s capas guardadas.", guardadas, len(LAYERS))
 
 
 if __name__ == "__main__":

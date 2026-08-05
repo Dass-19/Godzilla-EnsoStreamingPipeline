@@ -26,6 +26,12 @@ def fetch_sgr_events():
         with urllib.request.urlopen(req) as response:
             data = json.loads(response.read().decode("utf-8"))
 
+            features = data.get("features", [])
+            if features:
+                logger.info("Eventos SGR: %s registros", len(features))
+            else:
+                logger.error("Eventos SGR: respuesta sin features")
+
             return data
     except Exception:
         logger.exception("Error descargando eventos SGR")
