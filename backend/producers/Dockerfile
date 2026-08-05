@@ -2,11 +2,12 @@
 # importan `contracts.py`, el módulo compartido con el job de Spark que define
 # el shape de los payloads del índice de riesgo.
 FROM python:3.11-slim
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 WORKDIR /app
 
 COPY producers/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN uv pip install --system --no-cache -r requirements.txt
 
 COPY producers/ .
 COPY contracts.py ./contracts.py

@@ -49,6 +49,9 @@ HDFS UI `:9870`, Spark master UI `:8080`, Kafka externo `localhost:9092`.
 - `backend/env/.env` (copiar de `.env.example`) y el JSON de service account de Google Earth Engine en
   `backend/env/ensostreamingpipeline-7f414895f6f4.json` — el `docker-compose.yml` monta ese nombre de
   archivo **literal**. Sin `.env`, `docker compose config` ya falla: lo consumen `producers` y `api`.
+- Los Dockerfiles de `producers` y `api` instalan dependencias con `uv pip install --system` (binario
+  de `uv` copiado desde `ghcr.io/astral-sh/uv:latest`), no con `pip` directo — mismo `requirements.txt`,
+  build más rápido. Si se agrega un Dockerfile nuevo, seguir el mismo patrón.
 
 ## Arquitectura
 
