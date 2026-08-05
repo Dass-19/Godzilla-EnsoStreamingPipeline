@@ -1,14 +1,14 @@
 """
 Script autónomo para derivar factores estáticos de zonas usando Google Earth Engine.
 
-Calcula cota media (Copernicus DEM GLO-30), pendiente, frecuencia de agua
-superficial (JRC Global Surface Water) y población estimada (WorldPop) para un
-buffer de 1.5 km alrededor del centroide de cada zona en Guayaquil.
+Calcula cota media (Copernicus DEM GLO-30) y población estimada (WorldPop)
+para un buffer de 1.5 km alrededor del centroide de cada zona en Guayaquil.
 """
 
 import csv
 import os
 import pathlib
+
 import ee
 
 CREDS_PATH = os.environ.get(
@@ -31,13 +31,11 @@ def derivar_factores_zonas():
     init_gee()
 
     dem = ee.Image("COPERNICUS/DEM/GLO30").select("DEM")
-    slope = ee.Terrain.slope(dem)
-    water = ee.Image("JRC/GSW1_4/GlobalSurfaceWater").select("occurrence")
     worldpop = ee.ImageCollection("WorldPop/GP/100m/pop").first().select("population")
 
     zonas_actualizadas = []
 
-    with open(CSV_PATH, "r", encoding="utf-8") as f:
+    with open(CSV_PATH, encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             lat = float(row["lat_centroide"])
@@ -46,7 +44,6 @@ def derivar_factores_zonas():
             buffer = point.buffer(1500)
 
             cota_val = dem.reduceRegion(ee.Reducer.mean(), buffer, 30).get("DEM").getInfo()
-            slope_val = slope.reduceRegion(ee.Reducer.mean(), buffer, 30).get("slope").getInfo()
             pop_val = worldpop.reduceRegion(ee.Reducer.sum(), buffer, 100).get("population").getInfo()
 
             if cota_val is not None:
