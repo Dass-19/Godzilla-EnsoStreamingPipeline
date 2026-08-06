@@ -36,7 +36,14 @@ logger = logging.getLogger("enso.producer")
 KAFKA_BOOTSTRAP = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 MAX_REQUEST_SIZE_BYTES = 10 * 1024 * 1024
 
-HDFS_LOGS_BASE_PATH = "/enso_data/raw/producer_logs"
+# Misma variable y mismo significado que usa la API para leer (`HDFS_BASE` en
+# app.py): raíz de datos, sin esquema, porque WebHDFS recibe rutas y no URIs.
+# Hardcodear la ruta de escritura hacía que apuntar el pipeline a otra raíz
+# dejara los logs escritos en HDFS pero invisibles para `/api/logs` — los dos
+# contenedores comparten el mismo `env_file`, así que la divergencia sería
+# silenciosa.
+HDFS_BASE_PATH = os.environ.get("HDFS_BASE_PATH", "/enso_data")
+HDFS_LOGS_BASE_PATH = f"{HDFS_BASE_PATH}/raw/producer_logs"
 INTERVALO_FLUSH_LOGS_S = int(os.environ.get("INTERVALO_FLUSH_LOGS_S", "60"))
 
 

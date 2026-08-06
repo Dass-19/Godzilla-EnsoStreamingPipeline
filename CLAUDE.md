@@ -99,7 +99,13 @@ Ninguno fabrica datos — hay un test que falla si algún `producer_*.py` vuelve
 Todo mensaje que pase por el `logger` compartido de `kafka_client.py` (`"enso.producer"`) también se
 sube a HDFS: `HandlerHDFS`, un `logging.Handler` sin threads propios, bufferiza líneas en memoria y las
 vuelca cada `INTERVALO_FLUSH_LOGS_S` (default 60s) a
-`enso_data/raw/producer_logs/producer=<nombre>/fecha=YYYY-MM-DD/<epoch_ms>.log`. Escribe un archivo
+`<HDFS_BASE_PATH>/raw/producer_logs/producer=<nombre>/fecha=YYYY-MM-DD/<epoch_ms>.log`. Esa ruta se
+deriva de `HDFS_BASE_PATH` y no está hardcodeada **a propósito**: `producers` y `api` comparten el mismo
+`env_file`, así que si el escritor fijara la ruta y el lector la tomara del entorno, apuntar el pipeline
+a otra raíz dejaría los logs en HDFS pero invisibles para `/api/logs`, sin ningún error. Por el mismo
+motivo `producer_seguraep.py` la interpreta igual (raíz de datos, no su propio subdirectorio):
+`HDFS_BASE_PATH` significa **una sola cosa** dentro del contenedor. El `hdfs://namenode:8020/...` del
+compose es solo del `spark-submitter`, que necesita el esquema; WebHDFS recibe rutas, no URIs. Escribe un archivo
 nuevo por flush en vez de hacer `append`, porque no hay garantía de que el clúster tenga habilitado el
 append de WebHDFS. El nombre del producer sale de `sys.argv[0]` (`producer_noaa.py` → `noaa`), así que
 cada script no tiene que identificarse a mano. Un fallo al escribir a HDFS nunca tumba el producer

@@ -191,7 +191,12 @@ def download_layer(layer_info, hdfs_client, hdfs_base_path, fmt="geojson"):
 def run_script():
     webhdfs_url = os.environ.get("WEBHDFS_URL", "http://localhost:9870")
     hdfs_user = os.environ.get("HDFS_USER", "root")
-    hdfs_base_path = os.environ.get("HDFS_BASE_PATH", "/enso_data/raw/seguraep")
+    # `HDFS_BASE_PATH` es la raíz de datos (`/enso_data`), igual que para la API
+    # y para el HandlerHDFS. Antes este script la interpretaba como su propio
+    # subdirectorio ya resuelto: la misma variable significaba dos cosas dentro
+    # del mismo contenedor, y definirla rompía una de las dos.
+    hdfs_base = os.environ.get("HDFS_BASE_PATH", "/enso_data")
+    hdfs_base_path = f"{hdfs_base}/raw/seguraep"
 
     logger.info("Conectando a HDFS en %s...", webhdfs_url)
     client = InsecureClient(webhdfs_url, user=hdfs_user)
