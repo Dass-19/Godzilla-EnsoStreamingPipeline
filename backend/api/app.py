@@ -219,6 +219,20 @@ frontend_path = RAIZ_REPO / "frontend"
 if not frontend_path.exists():
     frontend_path = pathlib.Path("/frontend")
 if frontend_path.exists():
+    # La auditoría va montada aparte para que su URL sea `/logs` y no
+    # `/dashboard/logs.html`: `html=True` sirve el `index.html` del directorio
+    # como raíz del prefijo, que es justo por lo que la página vive en
+    # `frontend/logs/index.html` en vez de ser un `.html` suelto.
+    # Se monta antes que `/dashboard` solo por legibilidad — los prefijos no se
+    # solapan, así que el orden no cambia el ruteo.
+    logs_path = frontend_path / "logs"
+    if logs_path.exists():
+        app.mount(
+            "/logs",
+            StaticFiles(directory=str(logs_path), html=True),
+            name="logs",
+        )
+
     app.mount(
         "/dashboard",
         StaticFiles(directory=str(frontend_path), html=True),

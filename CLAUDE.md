@@ -191,11 +191,17 @@ al editar** o el navegador servirá la versión vieja. Los 9 módulos ES bajo `j
 (incluida la querystring) — hay que bumpear los dos (y `styles.css?v=`) a la vez.
 
 La auditoría de `/api/logs` **no** vive dentro de `index.html`: es una página aparte,
-[logs.html](frontend/logs.html), con su propio CSS ([logs.css](frontend/logs.css)) y su propio módulo
-([js/logs.js](frontend/js/logs.js)) — deliberadamente separada del dashboard de mapa en vez de un panel
-superpuesto, para que un problema de renderizado en una vista no arrastre a la otra. Comparte con
-`index.html` solo lo genérico (`styles.css`, `api/client.js`, `config.js`, y las clases de fila
-`.event-card-item`/`.nivel-*`). `logs.html` es servida igual que `index.html` por el mismo
-`StaticFiles(html=True)` en `/dashboard` (queda en `/dashboard/logs.html`), así que también cachebustea
-con su propio `?v=` — bumpearlo junto con `logs.js` cuando se edite, no hace falta tocar el `?v=` de
-`index.html`/`main.js` si no se los toca.
+[logs/index.html](frontend/logs/index.html), con su propio CSS ([logs.css](frontend/logs.css)) y su
+propio módulo ([js/logs.js](frontend/js/logs.js)) — deliberadamente separada del dashboard de mapa en
+vez de un panel superpuesto, para que un problema de renderizado en una vista no arrastre a la otra.
+Comparte con `index.html` solo lo genérico (`styles.css`, `api/client.js`, `config.js`, y las clases de
+fila `.event-card-item`/`.nivel-*`).
+
+Se sirve en **`/logs`**, con su propio `app.mount(...StaticFiles(html=True))`. Por eso es un directorio
+con `index.html` adentro y no un `logs.html` suelto: `html=True` sirve el `index.html` del directorio
+como raíz del prefijo, y así la URL no expone la extensión. La contrapartida es que ese montaje solo
+expone `frontend/logs/`, así que la página referencia sus assets con rutas **absolutas**
+(`/dashboard/styles.css`, `/dashboard/js/logs.js`) en vez de duplicarlos — y `js/logs.js` se queda bajo
+`frontend/js/` para que sus imports relativos (`./config.js`, `./api/client.js`) sigan resolviendo.
+Cachebustea con su propio `?v=`: bumpearlo junto con `logs.js`/`logs.css` cuando se editen, sin tocar el
+de `index.html`/`main.js`.

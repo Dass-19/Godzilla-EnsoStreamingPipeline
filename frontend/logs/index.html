@@ -5,13 +5,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Godzilla · Auditoría de Logs</title>
-    <link rel="icon" type="image/png" href="icon.png">
+    <link rel="icon" type="image/png" href="/dashboard/icon.png">
 
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="styles.css?v=21">
-    <link rel="stylesheet" href="logs.css?v=21">
+    <!-- Rutas absolutas a /dashboard/: esta página se sirve desde el montaje
+         `/logs`, que solo expone este directorio. Los assets compartidos con
+         el mapa (styles.css) y el módulo JS siguen viviendo bajo /dashboard,
+         para no duplicarlos ni romper los imports relativos de js/logs.js. -->
+    <link rel="stylesheet" href="/dashboard/styles.css?v=21">
+    <link rel="stylesheet" href="/dashboard/logs.css?v=21">
 </head>
 
 <body class="logs-page">
@@ -41,7 +45,7 @@
         </div>
     </main>
 
-    <script type="module" src="js/logs.js?v=21"></script>
+    <script type="module" src="/dashboard/js/logs.js?v=21"></script>
 </body>
 
 </html>
