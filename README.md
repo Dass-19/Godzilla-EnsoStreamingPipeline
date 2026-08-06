@@ -90,7 +90,7 @@ El repositorio se organiza dividiendo claramente las responsabilidades del siste
 ```text
 Godzilla/
 ├── backend/
-│   ├── api/                       # API FastAPI que expone datos de HDFS (zona processed/raw) hacia frontend
+│   ├── api/                       # API FastAPI modular (app.py, schemas.py, helpers.py, routers/) que expone HDFS hacia el frontend
 │   ├── contracts.py               # Contrato de datos compartido: define el shape de los payloads que
 │   │                              #   alimentan el índice, y lo importan productores y Spark por igual
 │   ├── env/                       # Variables de entorno y credenciales (ej. Google Earth Engine)
@@ -99,7 +99,7 @@ Godzilla/
 ├── docker/                        # Dockerfiles e imágenes personalizadas (ej. clúster Hadoop/HDFS)
 ├── docs/                          # Diagramas de arquitectura y documentación técnica complementaria
 ├── frontend/                      # Dashboard web interactivo con mapas (MapLibre, capas de riesgo, simulación)
-├── tests/                         # Tests del índice de riesgo y del contrato productor ↔ Spark
+├── tests/                         # Tests del índice de riesgo, contrato API y Smoke tests de integración
 └── compose.yml                    # Orquestador principal unificado (Hadoop, Kafka, Spark, API, Productores)
 ```
 
@@ -117,18 +117,16 @@ Para que los productores de datos funcionen correctamente, es necesario configur
 
 > **Nota:** El archivo `.env` y el JSON de credenciales de GEE deben mantenerse privados. El repositorio ya incluye una plantilla `.env.example` segura para guiarte.
 >
-> Sin `backend/env/.env` el `docker compose` no arranca: lo consumen tanto el contenedor de productores
-> como la API (que necesita `OPENWEATHERMAP_API_KEY` para su endpoint proxy `/api/clima/punto`).
+> Sin `backend/env/.env` el `docker compose` no arranca: lo consumen tanto el contenedor de productores como la API (que necesita `OPENWEATHERMAP_API_KEY` para su endpoint proxy `/api/clima/punto`).
 > **Ninguna clave debe volver al frontend:** el dashboard consulta siempre a la API.
 
 ### 🧪 Tests y linting
 
-El índice de riesgo y el contrato de datos entre productores y Spark están cubiertos por tests que
-corren sin Docker ni el pipeline levantado:
+El índice de riesgo, los contratos de la API REST y la integración del frontend están cubiertos por tests automatizados:
 
 ```bash
 pip install -r requirements-dev.txt
-pytest tests -q
+pytest tests -v
 ruff check .
 ```
 
@@ -149,16 +147,17 @@ docker compose up -d
 2. Un contenedor de inicialización (`init-kafka`) crea automáticamente todos los tópicos requeridos (gee-data, alertas-sngr, noaa-data, etc.).
 3. Los productores (contenedor `producers`) inician la extracción de fuentes de datos en tiempo real y publican los eventos en los tópicos de Kafka. `run_producers.py` los supervisa: si uno muere, lo reinicia con backoff creciente y lo reporta en los logs. Cada fuente tiene su propia cadencia (INOCAR y alertas cada 15 min; el resto, horaria), configurable por variables `INTERVALO_*` en el `.env`.
 4. **Spark** (Master y Worker) se despliega, y el contenedor `spark-submitter` envía automáticamente el job de streaming, procesando la data de Kafka, calculando el índice de riesgo de inundación local, y guardando los resultados en formato Parquet dentro de HDFS.
-5. La **API** se levanta y se conecta directamente a HDFS, exponiendo los resultados analizados.
+5. La **API** (modularizada con FastAPI, proxies asíncronos `httpx` y caché TTL de 15s) se levanta y se conecta directamente a HDFS, exponiendo los resultados analizados.
 
 ## 📊 Visualización del Dashboard
 
 Una vez levantado todo el entorno, el Dashboard web interactivo estará disponible de inmediato.
 Abre tu navegador y dirígete a:
 
-**[http://localhost:8000/dashboard/](http://localhost:8000/dashboard/)**
+**[http://localhost:8000/](http://localhost:8000/)** ó **[http://localhost:8000/dashboard/](http://localhost:8000/dashboard/)**
 
-*(Nota: La raíz `http://localhost:8000/` está reservada para el backend. Asegúrate de incluir `/dashboard/` en la URL).*
+*(Nota: Acceder directamente a `http://localhost:8000/` redirige automáticamente mediante HTTP 302 hacia `/dashboard/`).*
+
 
 ### 🔗 Interfaces y Puertos Expuestos
 

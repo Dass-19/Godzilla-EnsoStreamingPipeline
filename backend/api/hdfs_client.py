@@ -33,13 +33,16 @@ def get_client(webhdfs_url: str, user: str) -> InsecureClient:
     return InsecureClient(webhdfs_url, user=user)
 
 
-def _es_ruta_inexistente(error: HdfsError) -> bool:
+def es_ruta_inexistente(error: HdfsError) -> bool:
     mensaje = str(error)
     return (
         getattr(error, "exception", "") == "FileNotFoundException"
         or "FileNotFoundException" in mensaje
         or "does not exist" in mensaje
     )
+
+
+_es_ruta_inexistente = es_ruta_inexistente
 
 
 def _listar(client: InsecureClient, ruta: str) -> list[str]:

@@ -38,8 +38,9 @@ SPARK_APP_DIR=backend/spark uvicorn api.app:app --reload --port 8000
 docker compose restart spark-submitter
 ```
 
-Interfaces: dashboard `http://localhost:8000/dashboard/` (la raíz `/` **no** sirve el frontend),
+Interfaces: dashboard `http://localhost:8000/dashboard/` (la raíz `/` redirige automáticamente mediante HTTP 302 a `/dashboard/`),
 HDFS UI `:9870`, Spark master UI `:8080`, Kafka externo `localhost:9092`.
+
 
 ## Requisitos previos no obvios
 
@@ -161,21 +162,17 @@ contexto en el parquet. `calcular_indice_riesgo()` también devuelve `exposicion
 tabla estática de zonas. La leen Spark y la API (dos endpoints); cambiar sus columnas rompe los tres.
 
 ### API (`backend/api/`)
-FastAPI de solo lectura. [hdfs_client.py](backend/api/hdfs_client.py) habla **WebHDFS** con la librería `hdfs`
-pura-Python. Le da dos garantías a `app.py`: traduce "la ruta no existe" a `FileNotFoundError` (el
-resto sigue siendo `HdfsError` → 503, no 404) y acota cuántas particiones de fecha lee.
+FastAPI de solo lectura, modularizado en los siguientes módulos:
+- `app.py`: Punto de entrada (~220 líneas) que registra middleware CORS, manejador global de excepciones, ciclo de vida del cliente HTTP asíncrono, montaje de archivos estáticos y la redirección `GET /` → `/dashboard`.
+- `schemas.py`: Modelos Pydantic tipados (`RespuestaAPI[T]`, `MetaAPI`, `ErrorInfo`, `EstadoENSO`, `MareaActual`, `RegistroHistoricoZona`, etc.) con `model_config = ConfigDict(extra="allow")` para preservar campos requeridos por el frontend.
+- `helpers.py`: Utilidades compartidas (`respuesta_exitosa`, `sin_datos`, `hdfs_caido`), formateadores HDFS (`leer_telemetria_raw`, `leer_capa_seguraep`), caché TTL en memoria (15s) para `/api/riesgo/zonas`, y cliente `httpx.AsyncClient`.
+- `hdfs_client.py`: Cliente WebHDFS con la librería `hdfs` pura-Python. Traduce "la ruta no existe" a `FileNotFoundError` (el resto es `HdfsError` → 503, no 404) y acota particiones de fecha.
+- `routers/`: 9 routers por dominio (`salud.py`, `riesgo.py`, `enso.py`, `hidrologia.py`, `clima.py`, `eventos.py`, `capas.py`, `alertas.py`, `observabilidad.py`).
 
-`SPARK_APP_DIR` (default `/app/spark`, que es donde el compose ubica `backend/spark`) es lo que permite
-importar `risk_index` y ubicar el CSV. Cada fuente de datos y capa geográfica en HDFS expone su propio
-endpoint REST normalizado (`/api/eventos/sgr`, `/api/capas/parroquias`, `/api/capas/sectores`, `/api/clima/inamhi`, etc.),
-retornando respuestas estandarizadas bajo el modelo `RespuestaAPI`. `/api/escenario/simular` recalcula el índice en memoria sin
-tocar HDFS. `/api/clima/punto` es un proxy de OpenWeatherMap.
+`SPARK_APP_DIR` (default `/app/spark`, que es donde el compose ubica `backend/spark`) permite importar `risk_index` y ubicar el CSV. Cada fuente de datos y capa geográfica en HDFS expone su propio endpoint REST normalizado. `/api/escenario/simular` recalcula el índice en memoria sin tocar HDFS. `/api/clima/punto` y `/api/clima/tiles/...` son proxies asíncronos (`httpx`) hacia OpenWeatherMap para no exponer la API key en el frontend.
 
-`/api/logs/productores` y `/api/logs` auditan lo que `HandlerHDFS` sube desde los producers (ver
-Ingesta). A diferencia del resto de la API, que solo lee parquet, estos leen texto plano: por eso
-`leer_texto_particiones()` y `parsear_linea_log()` viven en `hdfs_client.py` en vez de en `app.py` —
-así el parseo no depende de `fastapi`/`pydantic`, que CI no instala para correr los tests (solo
-`requirements-dev.txt` + `backend/producers/requirements.txt`).
+`/api/logs/productores` y `/api/logs` auditan lo que `HandlerHDFS` sube desde los producers (ver Ingesta). A diferencia del resto de la API, que solo lee parquet, estos leen texto plano: por eso `leer_texto_particiones()` y `parsear_linea_log()` viven en `hdfs_client.py` en vez de en `app.py` — así el parseo no depende de `fastapi`/`pydantic`, que CI no instala para correr los tests (solo `requirements-dev.txt` + `backend/producers/requirements.txt`).
+
 
 ### Frontend (`frontend/`)
 HTML/CSS/JS sin build step ni gestor de paquetes: MapLibre GL, Chart.js y Turf por CDN, con versión

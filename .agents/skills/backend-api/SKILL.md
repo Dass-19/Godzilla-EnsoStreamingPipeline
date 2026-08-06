@@ -6,10 +6,7 @@ description: 'Use this skill when developing, enhancing, or maintaining the Fast
 # Backend FastAPI REST API Skill
 
 ## Overview
-Governs [backend/api/app.py](../../../backend/api/app.py) and its WebHDFS client
-[hdfs_client.py](../../../backend/api/hdfs_client.py). Read-only API: it reads processed Parquet from
-HDFS, imports `risk_index.py`/`zonas_guayaquil.csv` from `backend/spark/` for the in-memory simulator, and
-proxies OpenWeatherMap so the API key never reaches the frontend.
+Governs the modular FastAPI REST service package in [backend/api/](../../../backend/api/) (`app.py`, `schemas.py`, `helpers.py`, and `routers/`) and its WebHDFS client [hdfs_client.py](../../../backend/api/hdfs_client.py). Read-only API: it reads processed Parquet from HDFS, imports `risk_index.py`/`zonas_guayaquil.csv` from `backend/spark/` for the in-memory simulator, uses `httpx` async client for OpenWeatherMap proxies, and caches frequent HDFS risk queries in memory (15s TTL).
 
 ---
 
@@ -17,8 +14,13 @@ proxies OpenWeatherMap so the API key never reaches the frontend.
 
 1. **Direct HDFS reads**: via `hdfs_client.get_client()` (WebHDFS, pure-Python `hdfs` package) + pandas —
    no PyArrow/native libhdfs, no SQL database.
-2. **Unified envelope (`RespuestaAPI[T]`)**: every endpoint returns this shape, built by
-   `_respuesta_exitosa(data, fuente=...)`:
+2. **Modularized APIRouter structure**:
+   - `app.py`: Minimal entrypoint (~220 lines) registering CORS middleware, exception handlers, static mounts, HTTP lifespan lifecycle, and domain routers.
+   - `schemas.py`: Unified Pydantic response models (`RespuestaAPI[T]`, `MetaAPI`, `ErrorInfo`) and domain schemas (`EstadoENSO`, `MareaActual`, `RegistroHistoricoZona`, etc.) using `ConfigDict(extra="allow")`.
+   - `helpers.py`: Common helpers (`respuesta_exitosa`, `sin_datos`, `hdfs_caido`), HDFS readers (`leer_telemetria_raw`, `leer_capa_seguraep`), in-memory `CacheTTL` (15s), and `httpx.AsyncClient` lifecycle.
+   - `routers/`: 9 routers split by domain (`salud.py`, `riesgo.py`, `enso.py`, `hidrologia.py`, `clima.py`, `eventos.py`, `capas.py`, `alertas.py`, `observabilidad.py`).
+3. **Unified envelope (`RespuestaAPI[T]`)**: every endpoint returns this shape, built by
+   `respuesta_exitosa(data, fuente=...)`:
    ```json
    {
      "status": "success",
@@ -32,66 +34,26 @@ proxies OpenWeatherMap so the API key never reaches the frontend.
      }
    }
    ```
-3. **OpenAPI docs**: `response_model=RespuestaAPI[...]`, `summary`/`description` in Markdown, and
-   `responses={...}` documenting the non-200 cases.
-4. **Structured errors**: the global `@app.exception_handler(HTTPException)` reformats any raised
+4. **OpenAPI docs**: `response_model=RespuestaAPI[...]`, `summary`/`description` in Markdown, and
+   `responses={...}` documenting non-200 cases.
+5. **Structured errors**: global `@app.exception_handler(HTTPException)` reformats any raised
    `HTTPException` into the same `RespuestaAPI` envelope, tagging it with a `tipo` string:
-   - `404` → `RECURSO_NO_ENCONTRADO` (helper `_sin_datos(detalle)`) — requested HDFS path/date/legacy
-     file doesn't exist.
-   - `502` → `PROVEEDOR_NO_DISPONIBLE` — an upstream API (OpenWeatherMap) failed.
-   - `503` → `SERVICIO_HDFS_NO_DISPONIBLE` (helper `_hdfs_caido(error)`) — WebHDFS unreachable.
+   - `404` → `RECURSO_NO_ENCONTRADO` (helper `sin_datos(detalle)`) — requested HDFS path/date/file doesn't exist.
+   - `502` → `PROVEEDOR_NO_DISPONIBLE` — upstream API (OpenWeatherMap) failed.
+   - `503` → `SERVICIO_HDFS_NO_DISPONIBLE` (helper `hdfs_caido(error)`) — WebHDFS unreachable.
 
 ---
 
-## 2. Endpoint pattern
+## 2. Key Files
 
-```python
-@app.get(
-    "/api/recurso/ejemplo",
-    response_model=RespuestaAPI[RespuestaModelo],
-    tags=["riesgo"],
-    summary="Título conciso del endpoint",
-    description="Explicación detallada en Markdown de la lógica del endpoint.",
-    responses={
-        404: {"model": RespuestaAPI[None], "description": "Recurso ausente."},
-        503: {"model": RespuestaAPI[None], "description": "HDFS inalcanzable."},
-    },
-)
-def mi_endpoint(
-    parametro_id: str = Path(..., description="ID del parámetro", example="ZONA_001"),
-    limite: int = Query(10, ge=1, le=100, description="Límite de resultados", example=10),
-):
-    data = fetch_datos(parametro_id, limite)
-    return _respuesta_exitosa(data, fuente="/enso_data/ejemplo")
-```
-
-`ZonaRiesgo` (and any other response model) is a **filter on output**: a field not declared there is
-silently dropped by FastAPI even if the underlying dict has it — when the risk row gains a new field
-upstream, add it to the response model too, or it never reaches the frontend.
-
----
-
-## 3. WebHDFS Reading & Caching Rules
-
-- **Client reuse**: `_client()` in `app.py` is a thin wrapper over `get_client(webhdfs_url, user)` from
-  [hdfs_client.py](../../../backend/api/hdfs_client.py), which is itself `@lru_cache(maxsize=1)`.
-- **Static reference data**: `_zonas_referencia()` (reads `zonas_guayaquil.csv`) is also
-  `@lru_cache(maxsize=1)` — editing the CSV requires an API restart to see the change.
-- **Streaming dedup**: always apply `_ultimo_por_zona(df)` to PySpark streaming output before returning
-  it — it sorts by `calculado_en`, drops duplicate `(zona_id, epoch_id)` (an `append` retry from
-  `foreachBatch` isn't idempotent), then keeps the latest row per `zona_id`.
-- `hdfs_client.py`'s own job is narrower than `app.py`'s usage of it: it translates "path doesn't exist"
-  into `FileNotFoundError` and caps how many date partitions get read — the response envelope and error
-  codes live in `app.py`, not there.
-
----
-
-## 4. Key Files
-
-- **Servidor Principal**: [backend/api/app.py](../../../backend/api/app.py)
+- **Configuración y Entrypoint**: [backend/api/app.py](../../../backend/api/app.py)
+- **Esquemas y Envelopes Pydantic**: [backend/api/schemas.py](../../../backend/api/schemas.py)
+- **Utilidades, Caché y HTTP Async**: [backend/api/helpers.py](../../../backend/api/helpers.py)
 - **Cliente WebHDFS**: [backend/api/hdfs_client.py](../../../backend/api/hdfs_client.py)
+- **Routers por Dominio**: [backend/api/routers/](../../../backend/api/routers/)
 - **Modelo de Riesgo (importado en memoria)**: [backend/spark/risk_index.py](../../../backend/spark/risk_index.py)
 - **Cliente JavaScript Frontend**: [frontend/js/api/client.js](../../../frontend/js/api/client.js)
+
 
 ---
 
