@@ -27,10 +27,14 @@ from pathlib import Path
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-)
+# Una sola definición del formato: `basicConfig` solo se lo aplica al
+# StreamHandler que crea él mismo, así que el HandlerHDFS tiene que pedirlo
+# explícitamente (ver más abajo). Si cada uno declarara el suyo, el archivo
+# subido a HDFS podría dejar de coincidir con lo que `parsear_linea_log()`
+# espera en la API — y las líneas se descartarían en silencio al leerlas.
+FORMATO_LOG = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+
+logging.basicConfig(level=logging.INFO, format=FORMATO_LOG)
 logger = logging.getLogger("enso.producer")
 
 KAFKA_BOOTSTRAP = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
@@ -65,6 +69,10 @@ class HandlerHDFS(logging.Handler):
 
     def __init__(self, nombre_producer: str | None = None):
         super().__init__()
+        # Sin esto, `self.format()` cae al formatter por defecto de logging
+        # ("%(message)s") y sube el mensaje pelado, sin fecha ni nivel: la API
+        # no puede parsear esas líneas y las descarta todas.
+        self.setFormatter(logging.Formatter(FORMATO_LOG))
         self._nombre = nombre_producer or _nombre_producer()
         self._buffer: list[str] = []
         self._ultimo_flush = time.monotonic()

@@ -44,7 +44,27 @@ def test_emit_acumula_en_el_buffer_sin_flushear_de_inmediato():
     handler.emit(_record("mensaje %s", ("uno",)))
     handler.emit(_record("mensaje %s", ("dos",)))
     assert len(handler._buffer) == 2
-    assert "mensaje uno" in handler._buffer[0]
+    assert handler._buffer[0].endswith("INFO enso.producer: mensaje uno")
+
+
+def test_la_linea_emitida_la_puede_parsear_la_api():
+    """Contrato entre el escritor y el lector de logs.
+
+    Regresión: el handler no seteaba formatter propio (`basicConfig` solo se lo
+    aplica al StreamHandler que crea él), así que subía a HDFS el mensaje pelado
+    sin fecha ni nivel. `/api/logs` no podía parsear ni una línea y devolvía 404
+    con las particiones llenas. Un `in` sobre el mensaje no lo detectaba.
+    """
+    from hdfs_client import parsear_linea_log
+
+    handler = HandlerHDFS(nombre_producer="noaa")
+    handler.emit(_record("ciclo topic=%s obtenidos=%d", ("noaa-data", 1)))
+
+    parseada = parsear_linea_log(handler._buffer[0])
+    assert parseada is not None, f"la API no pudo parsear: {handler._buffer[0]!r}"
+    assert parseada["nivel"] == "INFO"
+    assert parseada["logger"] == "enso.producer"
+    assert parseada["mensaje"] == "ciclo topic=noaa-data obtenidos=1"
 
 
 def test_flush_escribe_una_ruta_particionada_por_producer_y_fecha_y_vacia_el_buffer():
