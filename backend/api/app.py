@@ -219,12 +219,8 @@ frontend_path = RAIZ_REPO / "frontend"
 if not frontend_path.exists():
     frontend_path = pathlib.Path("/frontend")
 if frontend_path.exists():
-    # La auditoría va montada aparte para que su URL sea `/logs` y no
-    # `/dashboard/logs.html`: `html=True` sirve el `index.html` del directorio
-    # como raíz del prefijo, que es justo por lo que la página vive en
-    # `frontend/logs/index.html` en vez de ser un `.html` suelto.
-    # Se monta antes que `/dashboard` solo por legibilidad — los prefijos no se
-    # solapan, así que el orden no cambia el ruteo.
+    # `html=True` sirve el index.html del directorio como raíz del prefijo: por
+    # eso la auditoría vive en `frontend/logs/` y su URL es `/logs`, sin `.html`.
     logs_path = frontend_path / "logs"
     if logs_path.exists():
         app.mount(
@@ -1310,9 +1306,7 @@ def logs_productores():
     },
 )
 def logs_productor(
-    # El patrón no es cosmético: `producer` se concatena a una ruta HDFS, así
-    # que sin acotarlo un `..` permitiría listar directorios arbitrarios del
-    # clúster. Los nombres reales salen de `sys.argv[0]` (ver HandlerHDFS).
+    # El patrón evita travesía de directorios: `producer` va a una ruta HDFS.
     producer: str = Query(
         ..., pattern="^[a-z0-9_]+$", description="Nombre del producer (ej: noaa)", example="noaa"
     ),

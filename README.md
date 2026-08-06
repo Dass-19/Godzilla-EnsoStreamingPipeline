@@ -164,31 +164,51 @@ Abre tu navegador y dirígete a:
 
 | Servicio | URL / Puerto | Descripción |
 |----------|--------------|-------------|
-| **Dashboard y API FastAPI** | `http://localhost:8000` | Frontend web principal y backend API |
+| **Dashboard (mapa)** | `http://localhost:8000/dashboard/` | Frontend web principal |
+| **Auditoría de logs** | `http://localhost:8000/logs` | Logs que cada producer archiva en HDFS, filtrables por producer y nivel |
+| **API FastAPI** | `http://localhost:8000/api/` | Backend REST (docs interactivas en `/docs`) |
 | **HDFS NameNode UI** | `http://localhost:9870` | Interfaz de administración de Hadoop/HDFS |
 | **Spark Master UI** | `http://localhost:8080` | Monitoreo del clúster de Spark y jobs de streaming |
 | **Kafka Broker Externo** | `localhost:9092` | Acceso a Kafka para consumo o depuración local |
 
 ## 📡 Endpoints Principales de la API
 
-El frontend se alimenta de endpoints REST normalizados bajo `/api/` respaldados por `RespuestaAPI`:
+El frontend se alimenta de endpoints REST normalizados bajo `/api/` respaldados por `RespuestaAPI`.
+Todos son `GET` y de solo lectura.
 
-- `GET /api/salud` - Endpoint básico para healthcheck y verificar el estado de la API (`{"estado": "ok"}`).
-- `GET /api/riesgo/zonas` - Último índice de riesgo compuesto calculado para las 22+ zonas y parroquias de Guayaquil.
-- `GET /api/riesgo/zonas/{zona_id}/historico` - Serie de tiempo histórico del índice de riesgo de una zona específica.
-- `GET /api/enso/estado` - Último estado ENSO (fase y anomalía SST) para el panel nacional/regional del dashboard.
-- `GET /api/enso/indices` - Serie temporal de índices macroclimáticos (ONI, SOI, Niño 1+2).
-- `GET /api/mareas/actual` - Altura de marea actual en el estuario (INOCAR).
-- `GET /api/embalse/actual` - Nivel y cota actual del embalse Daule-Peripa (CELEC).
-- `GET /api/clima/inamhi` - Pronóstico y alertas meteorológicas oficiales del INAMHI.
-- `GET /api/clima/open-meteo` - Pronóstico horaria de precipitación y temperatura (Open-Meteo).
-- `GET /api/hidrologia/geoglows` - Caudales simulados del Río Guayas y tributarios (GEOGLOWS ECMWF).
-- `GET /api/eventos/sgr` - Colección GeoJSON de incidentes de lluvia y afectaciones viales reportados por SGR.
-- `GET /api/capas/parroquias` - GeoJSON unificado de las 21 Parroquias Cantonales de Guayaquil (16 Urbanas + 5 Rurales).
-- `GET /api/capas/sectores` - GeoJSON de los Distritos Operativos de Respuesta Segura EP (A01 - A18).
-- `GET /api/capas/zonas-inundables` - Polígonos de zonas con riesgo histórico de anegamiento.
-- `GET /api/escenario/simular?precip_24h_mm=X&altura_marea_m=Y&nivel_embalse_msnm=Z` - Recalcula interactivamente el riesgo para todas las zonas usando valores hipotéticos sin tocar HDFS.
-- `GET /api/clima/punto?lat=X&lon=Y` - Proxy de OpenWeatherMap. Existe para que la API key viva en el servidor y no en el JavaScript del dashboard.
+| Endpoint | Descripción |
+|----------|-------------|
+| `/api/salud` | Healthcheck de la API (`{"estado": "ok"}`). |
+| **Riesgo** | |
+| `/api/riesgo/zonas` | Último índice de riesgo compuesto de las 22+ zonas y parroquias de Guayaquil. |
+| `/api/riesgo/zonas/{zona_id}/historico` | Serie de tiempo del índice de riesgo de una zona. Acepta `desde`, `hasta` y `max_dias`. |
+| `/api/riesgo/pronostico` | Proyección del índice a `horizonte_h` horas. |
+| `/api/escenario/simular` | Recalcula el riesgo de todas las zonas con valores hipotéticos, sin tocar HDFS. Parámetros: `precip_24h_mm`, `altura_marea_m`, `caudal_rio_m3s`, `saturacion_antecedente_mm`, `anomalia_nino12_c`. |
+| **ENSO e hidrología** | |
+| `/api/enso/estado` | Último estado ENSO (fase y anomalía SST). |
+| `/api/enso/indices` | Índices macroclimáticos (ONI, SOI, Niño 1+2). |
+| `/api/mareas/actual` | Altura de marea en el estuario (INOCAR). |
+| `/api/embalse/actual` | Cota del embalse Daule-Peripa (CELEC). Contexto: ya no pondera el índice. |
+| `/api/hidrologia/geoglows` | Caudal del Río Guayas (GEOGLOWS ECMWF). |
+| **Clima** | |
+| `/api/clima/inamhi` | Pronóstico y alertas oficiales del INAMHI. |
+| `/api/clima/open-meteo` | Pronóstico horario de precipitación y temperatura. |
+| `/api/clima/nasa-power` | Serie diaria de NASA POWER. |
+| `/api/clima/gee` | SST y precipitación satelital vía Google Earth Engine. |
+| `/api/clima/openweathermap` | Última lectura archivada de OpenWeatherMap. |
+| `/api/boyas/ndbc` | Boyas oceánicas del Pacífico ecuatorial. |
+| `/api/clima/punto?lat=X&lon=Y` | Proxy en vivo de OpenWeatherMap: la API key vive en el servidor, no en el JS. |
+| `/api/clima/tiles/{capa}/{z}/{x}/{y}.png` | Proxy de tiles raster de OpenWeatherMap. |
+| **Eventos y capas geográficas** | |
+| `/api/eventos/sgr` | GeoJSON de incidentes de lluvia y afectaciones viales (SGR). |
+| `/api/alertas/recientes` | Boletines de la SNGR. Devuelve lista vacía, no 404, si no hay ninguno. |
+| `/api/capas/parroquias` | Las 21 parroquias de Guayaquil (16 urbanas + 5 rurales). |
+| `/api/capas/sectores` | Distritos operativos de respuesta de Segura EP (A01–A18). |
+| `/api/capas/zonas-inundables` · `zonas-seguras` · `vias-inundables` · `vias-vulnerables-marea` | Capas de vulnerabilidad de Segura EP / SGR. |
+| `/api/capas/guayas-osm` | Ríos, esteros y equipamiento crítico desde OpenStreetMap. |
+| **Observabilidad** | |
+| `/api/logs/productores` | Producers con logs archivados en HDFS. |
+| `/api/logs?producer=X` | Líneas de log de un producer. Acepta `desde`, `hasta`, `nivel` y `limite`. |
 
 ### 🔍 Procedencia de los datos del índice
 

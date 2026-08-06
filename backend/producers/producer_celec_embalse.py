@@ -179,11 +179,7 @@ def fetch_nivel_embalse() -> list[dict]:
             )
         )
 
-    # Los dos conteos por separado, no solo el final: esta fuente extrae la cota
-    # con regex sobre notas de prensa (la más frágil del pipeline). Si CELEC
-    # cambia la redacción, `posts` sigue llegando lleno y `registros` se va a
-    # cero — sin este contraste, ese modo de falla es idéntico a "no hubo
-    # boletines nuevos".
+    # posts vs registros: si CELEC cambia la redacción, el regex deja de matchear y esto lo delata.
     if registros:
         logger.info("CELEC: %s posts, %s con cota extraída", len(posts), len(registros))
     else:

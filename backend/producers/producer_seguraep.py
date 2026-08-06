@@ -144,11 +144,8 @@ def download_layer(layer_info, hdfs_client, hdfs_base_path, fmt="geojson"):
         data = base_data
         data["features"] = all_features
 
-        # Sin esta guarda, una respuesta vacía (o un `{"error": {...}}` con HTTP
-        # 200, que ArcGIS devuelve al fallar) sobrescribía la capa buena con una
-        # FeatureCollection vacía —`overwrite=True` más abajo— y lo reportaba
-        # como éxito. Conservar la versión anterior es siempre mejor que borrar
-        # una capa geográfica por un fallo transitorio de la fuente.
+        # Sin esta guarda, ArcGIS devolviendo error con HTTP 200 sobrescribe la capa buena
+        # con una FeatureCollection vacía (`overwrite=True` más abajo).
         if not all_features:
             logger.error("%s: la fuente no devolvió features; se conserva la capa anterior", title)
             return False
@@ -208,9 +205,6 @@ def run_script():
             if download_layer(layer, client, hdfs_base_path, fmt):
                 guardadas += 1
 
-    # Antes esta línea afirmaba "capas guardadas" incluso si las 6 habían
-    # fallado. Es un job one-shot que corre cada 6h: el resumen es lo único que
-    # se mira para saber si hace falta revisar las líneas de arriba.
     if guardadas == len(LAYERS):
         logger.info("Proceso finalizado: %s/%s capas guardadas.", guardadas, len(LAYERS))
     else:

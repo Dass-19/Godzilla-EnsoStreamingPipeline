@@ -126,8 +126,6 @@ def fetch_alertas() -> list[dict]:
 
     except Exception:
         # fuente event-driven: sin conexión = "sin novedades", no se simula.
-        # Pero "sin novedades" y "SNGR caído" no pueden verse igual en la
-        # auditoría: el payload degrada en silencio, el log no.
         logger.exception("Error consultando la API de la SNGR")
         return []
 
@@ -156,9 +154,6 @@ def fetch_alertas() -> list[dict]:
             }
         )
 
-    # `posts` vs `registros` separa "la SNGR no publicó nada" de "publicó, pero
-    # ningún boletín menciona Guayas ni sus cantones" (el filtro de
-    # `_detectar_ubicacion`), que es el modo de falla silencioso de esta fuente.
     logger.info("SNGR: %s posts, %s alertas de Guayas", len(posts), len(registros))
 
     return registros

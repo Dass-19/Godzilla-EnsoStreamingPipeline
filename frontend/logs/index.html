@@ -10,10 +10,7 @@
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
 
-    <!-- Rutas absolutas a /dashboard/: esta página se sirve desde el montaje
-         `/logs`, que solo expone este directorio. Los assets compartidos con
-         el mapa (styles.css) y el módulo JS siguen viviendo bajo /dashboard,
-         para no duplicarlos ni romper los imports relativos de js/logs.js. -->
+    <!-- Absolutas: el montaje /logs solo expone este directorio. -->
     <link rel="stylesheet" href="/dashboard/styles.css?v=21">
     <link rel="stylesheet" href="/dashboard/logs.css?v=21">
 </head>

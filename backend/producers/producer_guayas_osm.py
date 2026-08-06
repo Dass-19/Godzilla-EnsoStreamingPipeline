@@ -118,10 +118,7 @@ def run_producer():
         wrapped = {"metadata": {"source": "OSM API"}, "data": data}
         publicado = send_record(producer, "guayas-osm", wrapped)
         producer.flush()
-        # Con el conteo, no solo "enviado": una capa que pasó de miles de
-        # features a un puñado (mirror degradado, bbox mal resuelto) daba
-        # exactamente el mismo log que una descarga sana. Este productor no
-        # pasa por `run_loop`, así que tampoco recibe su resumen por ciclo.
+        # No pasa por `run_loop`: este log es el único resumen que deja.
         n = len(data.get("features", []))
         if publicado:
             logger.info("guayas_osm enviado a Kafka (%s features).", n)

@@ -27,11 +27,7 @@ from pathlib import Path
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
 
-# Una sola definición del formato: `basicConfig` solo se lo aplica al
-# StreamHandler que crea él mismo, así que el HandlerHDFS tiene que pedirlo
-# explícitamente (ver más abajo). Si cada uno declarara el suyo, el archivo
-# subido a HDFS podría dejar de coincidir con lo que `parsear_linea_log()`
-# espera en la API — y las líneas se descartarían en silencio al leerlas.
+# Contrato con `parsear_linea_log()` de la API: si cambia, cambian los dos.
 FORMATO_LOG = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 
 logging.basicConfig(level=logging.INFO, format=FORMATO_LOG)
@@ -40,12 +36,8 @@ logger = logging.getLogger("enso.producer")
 KAFKA_BOOTSTRAP = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 MAX_REQUEST_SIZE_BYTES = 10 * 1024 * 1024
 
-# Misma variable y mismo significado que usa la API para leer (`HDFS_BASE` en
-# app.py): raíz de datos, sin esquema, porque WebHDFS recibe rutas y no URIs.
-# Hardcodear la ruta de escritura hacía que apuntar el pipeline a otra raíz
-# dejara los logs escritos en HDFS pero invisibles para `/api/logs` — los dos
-# contenedores comparten el mismo `env_file`, así que la divergencia sería
-# silenciosa.
+# Raíz de datos sin esquema (WebHDFS recibe rutas, no URIs). Debe coincidir con
+# el `HDFS_BASE` de la API o los logs quedan escritos pero invisibles.
 HDFS_BASE_PATH = os.environ.get("HDFS_BASE_PATH", "/enso_data")
 HDFS_LOGS_BASE_PATH = f"{HDFS_BASE_PATH}/raw/producer_logs"
 INTERVALO_FLUSH_LOGS_S = int(os.environ.get("INTERVALO_FLUSH_LOGS_S", "60"))
@@ -69,9 +61,8 @@ class HandlerHDFS(logging.Handler):
 
     def __init__(self, nombre_producer: str | None = None):
         super().__init__()
-        # Sin esto, `self.format()` cae al formatter por defecto de logging
-        # ("%(message)s") y sube el mensaje pelado, sin fecha ni nivel: la API
-        # no puede parsear esas líneas y las descarta todas.
+        # `basicConfig` solo formatea su propio StreamHandler; sin esto subiría
+        # el mensaje pelado y la API no podría parsearlo.
         self.setFormatter(logging.Formatter(FORMATO_LOG))
         self._nombre = nombre_producer or _nombre_producer()
         self._buffer: list[str] = []
@@ -88,15 +79,11 @@ class HandlerHDFS(logging.Handler):
         return self._client
 
     def emit(self, record: logging.LogRecord) -> None:
-        # Sin este try/except, un `logger.info("%s", ...)` con argumentos mal
-        # formados haría que `format()` lance dentro de `emit()`, y logging no
-        # lo atrapa: la excepción saldría por el `logger.info()` del productor
-        # y lo tumbaría. Justo lo que este handler promete no hacer.
+        # logging no atrapa lo que lance emit(): sin este try/except, un log mal
+        # formateado tumbaría al productor que lo emitió.
         try:
             self._buffer.append(self.format(record))
-            # ponytail: buffer acotado a 2000 líneas (~ evita crecer sin límite si
-            # HDFS está caído por mucho tiempo); si se necesita retener más,
-            # habría que persistir a disco local en vez de solo memoria.
+            # ponytail: tope en memoria; para retener más habría que ir a disco.
             if len(self._buffer) > 2000:
                 del self._buffer[:-2000]
             if time.monotonic() - self._ultimo_flush >= INTERVALO_FLUSH_LOGS_S:
@@ -158,11 +145,7 @@ def send_record(
     future = producer.send(topic, key=key, value=record)
     try:
         metadata = future.get(timeout=10)
-        # DEBUG y no INFO: con `HandlerHDFS` cada línea termina en HDFS, y hay
-        # fuentes que publican decenas de registros por ciclo (estaciones
-        # INAMHI, boyas NDBC, eventos SGR). El detalle de partition/offset sirve
-        # para depurar Kafka, no para auditar la ingesta: para eso está el
-        # resumen por ciclo de `run_loop`. Se recupera bajando el nivel a DEBUG.
+        # DEBUG y no INFO: cada línea termina en HDFS y esto es una por registro.
         logger.debug(
             "topic=%s partition=%s offset=%s key=%s",
             metadata.topic, metadata.partition, metadata.offset, key,
@@ -201,11 +184,8 @@ def run_loop(
                 topic,
             )
 
-        # Resumen por ciclo: es el único rastro que TODO productor deja sí o sí,
-        # incluso los que no loguean nada propio. Un ciclo vacío es la
-        # degradación documentada de varias fuentes (devuelven lista vacía en
-        # vez de inventar datos), así que va como WARNING para que se distinga
-        # de un ciclo sano al filtrar por nivel en la auditoría.
+        # Único rastro que deja todo productor, incluso los que no loguean nada
+        # propio. Ciclo vacío = degradación documentada, por eso WARNING.
         if obtenidos:
             logger.info(
                 "ciclo topic=%s obtenidos=%d publicados=%d",
@@ -214,10 +194,8 @@ def run_loop(
         else:
             logger.warning("ciclo sin registros topic=%s", topic)
 
-        # El ciclo es la unidad natural de flush. Sin esto el buffer espera al
-        # primer emit del ciclo siguiente, y hay productores que duermen 12h
-        # (INTERVALO_SST_SEMANAL, INTERVALO_NIVEL_RIO): sus logs no aparecerían
-        # en la auditoría hasta medio día después.
+        # Sin esto el buffer espera al ciclo siguiente, y hay productores que
+        # duermen 12h.
         if _handler_hdfs:
             _handler_hdfs.flush()
 
