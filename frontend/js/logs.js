@@ -1,42 +1,68 @@
 // ==========================================
-// PÁGINA DE AUDITORÍA DE LOGS DE PRODUCERS (logs.html)
+// PÁGINA DE AUDITORÍA DE LOGS DE PRODUCERS (/logs)
 // ==========================================
 
-import { mensajeVacio } from './config.js?v=21';
-import { fetchLogProducers, fetchLogs } from './api/client.js?v=21';
+import { mensajeVacio } from './config.js?v=22';
+import { fetchLogProducers, fetchLogs } from './api/client.js?v=22';
+import { cargarResumen } from './logs-resumen.js?v=22';
+
+const REFRESCO_MS = 60 * 1000;
+const LIMITE_LINEAS = 1000;
+
+// Últimas líneas traídas del servidor; el buscador filtra sobre esto sin
+// volver a pedirlas.
+let registrosCargados = [];
 
 function nivelClase(nivel) {
-    if (nivel === 'ERROR') return 'nivel-error';
+    if (nivel === 'ERROR' || nivel === 'CRITICAL') return 'nivel-error';
     if (nivel === 'WARNING') return 'nivel-warning';
     return 'nivel-info';
 }
 
-function pintarLogs(listEl, registros) {
+function pintarLogs(registros) {
+    const listEl = document.getElementById('logs-audit-list');
+    const conteoEl = document.getElementById('logs-conteo');
     listEl.innerHTML = '';
-    if (!registros || registros.length === 0) {
-        listEl.appendChild(mensajeVacio('Sin logs para ese filtro.'));
+
+    if (conteoEl) {
+        conteoEl.textContent = registros.length
+            ? `${registros.length} línea${registros.length === 1 ? '' : 's'}`
+            : '';
+    }
+
+    if (!registros.length) {
+        listEl.appendChild(mensajeVacio('Sin líneas para ese filtro.'));
         return;
     }
 
-    registros.forEach(r => {
+    for (const r of registros) {
         const card = document.createElement('div');
         card.className = `event-card-item ${nivelClase(r.nivel)}`;
 
-        const fechaEl = document.createElement('div');
-        fechaEl.className = 'event-date';
-        fechaEl.textContent = `${r.fecha} · ${r.nivel}`;
+        const fecha = document.createElement('div');
+        fecha.className = 'event-date';
+        fecha.textContent = `${r.fecha} · ${r.nivel}`;
 
-        const loggerEl = document.createElement('div');
-        loggerEl.className = 'event-title';
-        loggerEl.textContent = r.logger;
+        const logger = document.createElement('div');
+        logger.className = 'event-title';
+        logger.textContent = r.logger;
 
-        const mensajeEl = document.createElement('div');
-        mensajeEl.className = 'event-desc';
-        mensajeEl.textContent = r.mensaje;
+        const mensaje = document.createElement('div');
+        mensaje.className = 'event-desc';
+        mensaje.textContent = r.mensaje;
 
-        card.append(fechaEl, loggerEl, mensajeEl);
+        card.append(fecha, logger, mensaje);
         listEl.appendChild(card);
-    });
+    }
+}
+
+function aplicarBusqueda() {
+    const termino = (document.getElementById('logs-buscar')?.value ?? '').trim().toLowerCase();
+    pintarLogs(
+        termino
+            ? registrosCargados.filter(r => r.mensaje.toLowerCase().includes(termino))
+            : registrosCargados
+    );
 }
 
 async function cargarLogs() {
@@ -46,21 +72,33 @@ async function cargarLogs() {
     if (!listEl) return;
 
     if (!producer) {
+        registrosCargados = [];
         listEl.innerHTML = '';
         listEl.appendChild(mensajeVacio('Selecciona un producer para ver sus logs.'));
         return;
     }
 
     listEl.innerHTML = '';
-    listEl.appendChild(mensajeVacio('Cargando...'));
+    listEl.appendChild(mensajeVacio('Cargando…'));
 
-    let registros = [];
     try {
-        registros = await fetchLogs({ producer, nivel });
-    } catch {
-        registros = [];
+        registrosCargados = await fetchLogs({ producer, nivel, limite: LIMITE_LINEAS }) ?? [];
+    } catch (e) {
+        // Con el 404-si-vacío corregido, un fallo acá es un fallo real (HDFS
+        // caído, producer inexistente) y no "no hay líneas".
+        registrosCargados = [];
+        listEl.innerHTML = '';
+        listEl.appendChild(mensajeVacio(`No se pudieron cargar los logs: ${e.message}`));
+        return;
     }
-    pintarLogs(listEl, registros);
+    aplicarBusqueda();
+}
+
+function seleccionarProducer(nombre) {
+    const select = document.getElementById('logs-select-producer');
+    if (!select) return;
+    select.value = nombre;
+    cargarLogs();
 }
 
 async function poblarProducers() {
@@ -68,20 +106,31 @@ async function poblarProducers() {
     if (!select) return;
     try {
         const nombres = await fetchLogProducers();
-        (nombres || []).forEach(nombre => {
+        for (const nombre of nombres ?? []) {
             const opt = document.createElement('option');
             opt.value = nombre;
             opt.textContent = nombre;
             select.appendChild(opt);
-        });
+        }
     } catch {
-        // Aún no hay logs de ningún producer en HDFS: el select queda con
-        // solo la opción vacía, sin romper el resto de la página.
+        // Aún no hay logs en HDFS: el select queda solo con la opción vacía.
+    }
+}
+
+async function refrescarTablero() {
+    await cargarResumen(seleccionarProducer);
+    const sello = document.getElementById('logs-actualizado');
+    if (sello) {
+        sello.textContent = `actualizado ${new Date().toLocaleTimeString('es-EC')}`;
     }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     poblarProducers();
+    refrescarTablero();
+    setInterval(refrescarTablero, REFRESCO_MS);
+
     document.getElementById('logs-select-producer')?.addEventListener('change', cargarLogs);
     document.getElementById('logs-select-nivel')?.addEventListener('change', cargarLogs);
+    document.getElementById('logs-buscar')?.addEventListener('input', aplicarBusqueda);
 });

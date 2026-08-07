@@ -75,7 +75,9 @@ SPARK_APP_DIR = _resolver_directorio_spark()
 if str(SPARK_APP_DIR) not in sys.path:
     sys.path.insert(0, str(SPARK_APP_DIR))
 
-from risk_index import calcular_indice_riesgo  # noqa: E402
+# F401: no se usa acá, se re-exporta para routers/riesgo.py, que no puede
+# importarlo directo sin repetir la resolución de SPARK_APP_DIR de arriba.
+from risk_index import calcular_indice_riesgo  # noqa: E402,F401
 
 GEO_REF_PATH = pathlib.Path(
     os.environ.get(

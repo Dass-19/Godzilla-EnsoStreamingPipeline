@@ -10,21 +10,60 @@
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
 
+    <!-- Chart.js con versión exacta e integrity, igual que el dashboard del mapa -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"
+        integrity="sha384-NrKB+u6Ts6AtkIhwPixiKTzgSKNblyhlk0Sohlgar9UHUBzai/sgnNNWWd291xqt"
+        crossorigin="anonymous"></script>
+
     <!-- Absolutas: el montaje /logs solo expone este directorio. -->
-    <link rel="stylesheet" href="/dashboard/styles.css?v=21">
-    <link rel="stylesheet" href="/dashboard/logs.css?v=21">
+    <link rel="stylesheet" href="/dashboard/styles.css?v=22">
+    <link rel="stylesheet" href="/dashboard/logs.css?v=22">
 </head>
 
 <body class="logs-page">
     <header class="logs-header">
         <div>
             <h1>🧾 Auditoría de Logs</h1>
-            <p>Logs de producers archivados en HDFS</p>
+            <p>Salud de la ingesta a partir de los logs que cada producer archiva en HDFS</p>
         </div>
         <a href="/dashboard/" class="btn-secondary logs-back-link">← Volver al mapa</a>
     </header>
 
     <main class="logs-main">
+        <!-- Indicadores globales -->
+        <section class="kpi-grid" id="kpi-grid" aria-label="Indicadores globales"></section>
+
+        <div class="tablero-fila">
+            <section class="card">
+                <h3>Actividad por hora</h3>
+                <div class="chart-box"><canvas id="chart-actividad"></canvas></div>
+            </section>
+
+            <section class="card">
+                <h3>Estado por producer</h3>
+                <div class="events-scroll-container" style="max-height:240px;">
+                    <table class="tabla-producers">
+                        <thead>
+                            <tr>
+                                <th>Producer</th>
+                                <th>Estado</th>
+                                <th class="num">Ciclos</th>
+                                <th class="num">Publicados</th>
+                                <th>Último</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-producers-body"></tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <section class="card hidden" id="card-errores" style="margin-bottom:18px;">
+            <h3>Errores más repetidos</h3>
+            <div class="lista-errores" id="lista-errores"></div>
+        </section>
+
+        <!-- Listado de líneas (drill-down) -->
         <div class="logs-filters">
             <select id="logs-select-producer" class="parroquia-select">
                 <option value="">-- Producer --</option>
@@ -34,15 +73,23 @@
                 <option value="ERROR">ERROR</option>
                 <option value="WARNING">WARNING</option>
                 <option value="INFO">INFO</option>
+                <option value="DEBUG">DEBUG</option>
+                <option value="CRITICAL">CRITICAL</option>
             </select>
+            <input type="search" id="logs-buscar" class="logs-buscar" placeholder="Buscar en el mensaje…"
+                autocomplete="off">
+        </div>
+        <div class="logs-meta">
+            <span id="logs-conteo"></span>
+            <span id="logs-actualizado"></span>
         </div>
         <div id="logs-audit-list" class="logs-list">
             <div class="empty-state" style="color:#64748b; font-size:13px; text-align:center; padding:30px 0;">
-                Selecciona un producer para ver sus logs.</div>
+                Selecciona un producer —o hacé clic en una fila de la tabla— para ver sus logs.</div>
         </div>
     </main>
 
-    <script type="module" src="/dashboard/js/logs.js?v=21"></script>
+    <script type="module" src="/dashboard/js/logs.js?v=22"></script>
 </body>
 
 </html>

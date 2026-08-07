@@ -15,9 +15,12 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# `app.py` importa risk_index después de resolver SPARK_APP_DIR y agregarlo al
-# path: el import no puede ir arriba del todo.
+# `helpers.py` importa risk_index después de resolver SPARK_APP_DIR y agregarlo
+# al path: el import no puede ir arriba del todo.
 # B008: `Query(...)` en los defaults es el idioma de FastAPI para declarar
-# parámetros, no una llamada accidental.
+# parámetros, no una llamada accidental. Vive en los routers desde que se
+# dividió `app.py`.
 "backend/api/app.py" = ["E402", "B008"]
+"backend/api/helpers.py" = ["E402"]
+"backend/api/routers/*.py" = ["B008"]
 "tests/*" = ["E402"]

@@ -173,6 +173,24 @@ FastAPI de solo lectura, modularizado en los siguientes módulos:
 
 `/api/logs/productores` y `/api/logs` auditan lo que `HandlerHDFS` sube desde los producers (ver Ingesta). A diferencia del resto de la API, que solo lee parquet, estos leen texto plano: por eso `leer_texto_particiones()` y `parsear_linea_log()` viven en `hdfs_client.py` en vez de en `app.py` — así el parseo no depende de `fastapi`/`pydantic`, que CI no instala para correr los tests (solo `requirements-dev.txt` + `backend/producers/requirements.txt`).
 
+`/api/logs` devuelve **200 con lista vacía** cuando ningún registro pasa el filtro; el 404 queda solo
+para el producer que no tiene ninguna partición. Con 404 en ambos casos, "este producer no tuvo
+errores" era indistinguible de "HDFS está caído" y cualquier KPI de conteo mentía.
+
+`/api/logs/resumen` agrega esos logs en indicadores. La agregación vive en
+[analisis_logs.py](backend/api/analisis_logs.py) —Python puro, sin FastAPI— por el mismo motivo que
+`parsear_linea_log`: es la única forma de que CI la cubra. Se apoya en los tres literales que
+`run_loop` garantiza (`ciclo topic=… obtenidos=N publicados=N`, `ciclo sin registros topic=…`,
+`iniciando loop … intervalo=Ns`), presentes en los 18 productores que pasan por él.
+
+El estado `degradado` existe **aparte** de `error` porque es el punto ciego del pipeline: un productor
+caído a su valor de respaldo —`producer_inocar_mareas.py` con el modelo armónico, `producer_gee.py`
+publicando 0 mm, el mareógrafo en la estación de respaldo— **sigue cerrando ciclos con
+`obtenidos=1 publicados=1`**. Mirando solo la línea de ciclo, el tablero diría verde mientras entran
+datos sintéticos. Por eso `DEGRADACIONES` en `analisis_logs.py` busca los literales de degradación en
+el texto: **al añadir un productor que degrade, hay que sumar su literal ahí** o quedará indistinguible
+de uno sano.
+
 
 ### Frontend (`frontend/`)
 HTML/CSS/JS sin build step ni gestor de paquetes: MapLibre GL, Chart.js y Turf por CDN, con versión

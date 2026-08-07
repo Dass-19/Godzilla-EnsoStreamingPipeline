@@ -4,8 +4,6 @@ Endpoints de indicadores oceánicos y atmosféricos de El Niño (ENSO).
 
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import APIRouter
 
 from ..helpers import leer_telemetria_raw, respuesta_exitosa, ultimo_registro_raw

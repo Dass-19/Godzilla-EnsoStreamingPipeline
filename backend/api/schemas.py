@@ -294,4 +294,92 @@ class RegistroLog(BaseModel):
     mensaje: str = Field(..., description="Contenido del mensaje")
 
 
+class EstadoProducer(BaseModel):
+    """Salud de un producer derivada de sus logs."""
+
+    model_config = ConfigDict(extra="allow")
+
+    producer: str = Field(..., description="Nombre del producer", example="noaa")
+    estado: str = Field(
+        ...,
+        description=(
+            "ok | atrasado | degradado | error | sin_senal. `degradado` existe "
+            "aparte porque un productor puede cerrar ciclos sanos publicando un "
+            "valor de respaldo."
+        ),
+        example="ok",
+    )
+    ultimo_evento: str | None = Field(None, description="Timestamp de la última línea")
+    atraso_s: int | None = Field(None, description="Segundos desde la última línea")
+    cadencia_s: int | None = Field(None, description="Intervalo declarado u observado")
+    ciclos_ok: int = Field(0, description="Ciclos cerrados con registros")
+    ciclos_vacios: int = Field(0, description="Ciclos cerrados sin un solo registro")
+    registros_obtenidos: int = Field(0, description="Registros que devolvió la fuente")
+    registros_publicados: int = Field(0, description="Registros confirmados por Kafka")
+    no_publicados: int = Field(0, description="obtenidos - publicados; >0 apunta a Kafka")
+    errores: int = Field(0, description="Líneas ERROR o CRITICAL")
+    advertencias: int = Field(0, description="Líneas WARNING")
+    total_lineas: int = Field(0, description="Líneas leídas en la ventana")
+    degradaciones: list[str] = Field(
+        default_factory=list, description="Degradaciones detectadas en los mensajes"
+    )
+
+
+class TotalesLogs(BaseModel):
+    """Contadores globales del pipeline de ingesta."""
+
+    model_config = ConfigDict(extra="allow")
+
+    producers: int = Field(0, description="Producers con partición de logs")
+    ok: int = Field(0, description="Producers sanos")
+    atrasados: int = Field(0, description="Producers que superaron el doble de su cadencia")
+    degradados: int = Field(0, description="Producers publicando con valores de respaldo")
+    con_error: int = Field(0, description="Producers con al menos un ERROR")
+    sin_senal: int = Field(0, description="Producers sin ninguna línea en la ventana")
+    ciclos_ok: int = Field(0, description="Ciclos con registros en todo el pipeline")
+    ciclos_vacios: int = Field(0, description="Ciclos sin registros en todo el pipeline")
+    registros_publicados: int = Field(0, description="Registros confirmados por Kafka")
+    errores: int = Field(0, description="Total de líneas ERROR o CRITICAL")
+    advertencias: int = Field(0, description="Total de líneas WARNING")
+
+
+class ActividadHora(BaseModel):
+    """Conteo de líneas por nivel en una hora."""
+
+    model_config = ConfigDict(extra="allow")
+
+    hora: str = Field(..., description="Hora truncada (YYYY-MM-DD HH:00)")
+    INFO: int = Field(0, description="Líneas INFO")
+    WARNING: int = Field(0, description="Líneas WARNING")
+    ERROR: int = Field(0, description="Líneas ERROR o CRITICAL")
+
+
+class ErrorFrecuente(BaseModel):
+    """Mensaje de error repetido, con su producer de origen."""
+
+    model_config = ConfigDict(extra="allow")
+
+    producer: str = Field(..., description="Producer que lo emitió")
+    mensaje: str = Field(..., description="Texto del error")
+    veces: int = Field(..., description="Repeticiones en la ventana")
+
+
+class ResumenLogs(BaseModel):
+    """Indicadores agregados de todos los producers."""
+
+    model_config = ConfigDict(extra="allow")
+
+    generado_en: str = Field(..., description="Momento en que se calculó el resumen")
+    totales: TotalesLogs = Field(..., description="Contadores globales")
+    producers: list[EstadoProducer] = Field(
+        default_factory=list, description="Salud por producer, más severo primero"
+    )
+    actividad_por_hora: list[ActividadHora] = Field(
+        default_factory=list, description="Serie horaria de líneas por nivel"
+    )
+    top_errores: list[ErrorFrecuente] = Field(
+        default_factory=list, description="Los 10 errores más repetidos"
+    )
+
+
 DatoTelemetriaRaw = dict[str, Any] | list[Any]

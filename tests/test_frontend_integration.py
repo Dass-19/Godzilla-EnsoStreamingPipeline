@@ -6,6 +6,7 @@ Verifican forma de respuesta y status codes de los endpoints principales.
 import os
 import pathlib
 import sys
+
 import pytest
 from fastapi.testclient import TestClient
 

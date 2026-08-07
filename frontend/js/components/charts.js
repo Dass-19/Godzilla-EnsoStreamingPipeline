@@ -2,8 +2,8 @@
 // INTEGRACIÓN DE GRÁFICOS (CHART.JS)
 // ==========================================
 
-import { setText } from '../config.js?v=21';
-import { fetchHistoricoZona } from '../api/client.js?v=21';
+import { setText } from '../config.js?v=22';
+import { fetchHistoricoZona } from '../api/client.js?v=22';
 
 let globalRiskChart = null;
 let historyChart = null;

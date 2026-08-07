@@ -14,7 +14,7 @@ body.logs-page {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    max-width: 720px;
+    max-width: 1100px;
     width: 100%;
     margin: 0 auto 20px;
 }
@@ -39,7 +39,7 @@ body.logs-page {
 }
 
 .logs-main {
-    max-width: 720px;
+    max-width: 1100px;
     width: 100%;
     margin: 0 auto;
 }
@@ -60,4 +60,148 @@ body.logs-page {
 }
 .logs-list .event-card-item {
     font-size: 12.5px;
+}
+/* Monoespaciada: alinea los `topic=… obtenidos=…` entre líneas */
+.logs-list .event-desc {
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+
+/* --- Tablero de indicadores --- */
+
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+}
+.kpi-grid .card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.kpi-grid .value {
+    font-size: 1.6rem;
+}
+
+.tablero-fila {
+    display: flex;
+    gap: 14px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+}
+.tablero-fila > .card {
+    flex: 1 1 420px;
+    min-width: 0;
+}
+
+/* Chart.js con maintainAspectRatio:false toma el alto del contenedor */
+.chart-box {
+    position: relative;
+    height: 240px;
+}
+
+/* Las clases .nivel-* de styles.css están acopladas a .event-card-item, así que
+   un badge suelto necesita las suyas. Siempre con icono + texto: el color no
+   puede ser el único canal que distinga un estado de otro. */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+    border: 1px solid transparent;
+    white-space: nowrap;
+}
+.badge-ok        { color: #4ade80; border-color: rgba(74,222,128,.35);  background: rgba(74,222,128,.10); }
+.badge-atrasado  { color: #38bdf8; border-color: rgba(56,189,248,.35);  background: rgba(56,189,248,.10); }
+.badge-degradado { color: #f59e0b; border-color: rgba(245,158,11,.35);  background: rgba(245,158,11,.10); }
+.badge-error     { color: #ef4444; border-color: rgba(239,68,68,.35);   background: rgba(239,68,68,.10); }
+.badge-sin_senal { color: #94a3b8; border-color: rgba(148,163,184,.35); background: rgba(148,163,184,.10); }
+
+.tabla-producers {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+.tabla-producers th {
+    position: sticky;
+    top: 0;
+    background: #111c33;
+    text-align: left;
+    padding: 6px 8px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    color: #94a3b8;
+    border-bottom: 1px solid rgba(255,255,255,.1);
+}
+.tabla-producers td {
+    padding: 6px 8px;
+    border-bottom: 1px solid rgba(255,255,255,.05);
+    color: #cbd5e1;
+}
+.tabla-producers tbody tr {
+    cursor: pointer;
+    transition: background .15s ease;
+}
+.tabla-producers tbody tr:hover { background: rgba(255,255,255,.04); }
+.tabla-producers tbody tr.activa { background: rgba(56,189,248,.10); }
+.tabla-producers .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+.tabla-producers .producer-nombre {
+    color: #f8fafc;
+    font-weight: 600;
+}
+
+.lista-errores {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.error-item {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 11.5px;
+    padding: 5px 8px;
+    border-radius: 6px;
+    border-left: 3px solid #ef4444;
+    background: rgba(30,41,59,.6);
+}
+.error-item .veces {
+    color: #ef4444;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.error-item .origen { color: #38bdf8; font-weight: 600; }
+.error-item .texto { color: #cbd5e1; }
+
+.logs-buscar {
+    flex: 2;
+    min-width: 0;
+    background: rgba(15,23,42,.9);
+    color: #f8fafc;
+    border: 1px solid rgba(56,189,248,.4);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 11px;
+    outline: none;
+}
+.logs-buscar::placeholder { color: #64748b; }
+.logs-buscar:focus { border-color: #38bdf8; box-shadow: 0 0 10px rgba(56,189,248,.3); }
+
+.logs-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: #64748b;
+    margin-bottom: 8px;
 }

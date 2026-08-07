@@ -5,7 +5,6 @@ Endpoints de monitoreo, simulación y pronóstico del índice de riesgo.
 from __future__ import annotations
 
 from datetime import date
-from typing import Any
 
 import requests
 from fastapi import APIRouter, Path, Query

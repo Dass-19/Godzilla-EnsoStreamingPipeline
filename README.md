@@ -207,7 +207,8 @@ Todos son `GET` y de solo lectura.
 | `/api/capas/guayas-osm` | Ríos, esteros y equipamiento crítico desde OpenStreetMap. |
 | **Observabilidad** | |
 | `/api/logs/productores` | Producers con logs archivados en HDFS. |
-| `/api/logs?producer=X` | Líneas de log de un producer. Acepta `desde`, `hasta`, `nivel` y `limite`. |
+| `/api/logs?producer=X` | Líneas de log de un producer. Acepta `desde`, `hasta`, `nivel` y `limite`. Devuelve lista vacía, no 404, si nada pasa el filtro. |
+| `/api/logs/resumen` | Indicadores agregados: salud por producer, degradaciones detectadas, actividad por hora y errores más repetidos. |
 
 ### 🔍 Procedencia de los datos del índice
 

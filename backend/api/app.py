@@ -34,8 +34,8 @@ try:
     from .helpers import (
         CORS_ORIGINS,
         RAIZ_REPO,
-        _CacheTTL,
-        _cache_hdfs,
+        _cache_hdfs,  # noqa: F401
+        _CacheTTL,  # noqa: F401  re-export para tests/test_api_contract.py
         cerrar_http_client,
         obtener_http_client,
     )
@@ -54,8 +54,8 @@ except ImportError:
     from helpers import (
         CORS_ORIGINS,
         RAIZ_REPO,
-        _CacheTTL,
-        _cache_hdfs,
+        _cache_hdfs,  # noqa: F401
+        _CacheTTL,  # noqa: F401  re-export para tests/test_api_contract.py
         cerrar_http_client,
         obtener_http_client,
     )

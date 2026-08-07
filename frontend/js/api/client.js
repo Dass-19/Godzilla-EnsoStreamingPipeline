@@ -2,7 +2,7 @@
 // CLIENTE API DE SERVICIOS
 // ==========================================
 
-import { CONFIG } from '../config.js?v=21';
+import { CONFIG } from '../config.js?v=22';
 
 /**
  * Desempaqueta y valida respuestas con envoltura RespuestaAPI { status, data, error, meta }.
@@ -125,9 +125,16 @@ export async function fetchLogProducers() {
     return await parseResponse(res, "Error consultando producers con logs");
 }
 
-export async function fetchLogs({ producer, nivel } = {}) {
+export async function fetchLogs({ producer, nivel, limite, maxDias } = {}) {
     const params = new URLSearchParams({ producer });
     if (nivel) params.set('nivel', nivel);
+    if (limite) params.set('limite', limite);
+    if (maxDias) params.set('max_dias', maxDias);
     const res = await fetch(`${CONFIG.API_BASE}logs?${params.toString()}`);
     return await parseResponse(res, "Error consultando logs del producer");
+}
+
+export async function fetchLogResumen(dias = 1) {
+    const res = await fetch(`${CONFIG.API_BASE}logs/resumen?dias=${dias}`);
+    return await parseResponse(res, "Error consultando el resumen de logs");
 }

@@ -2,7 +2,7 @@
 // CONTROLADOR DEL DASHBOARD (DATOS EN TIEMPO REAL)
 // ==========================================
 
-import { setText, spanTexto, mensajeVacio } from './config.js?v=21';
+import { setText, spanTexto, mensajeVacio } from './config.js?v=22';
 import {
     fetchEnsoEstado,
     fetchMacroIndexes,
@@ -13,10 +13,10 @@ import {
     fetchRiesgoZonas,
     fetchCaudalGeoglows,
     fetchSgrEvents
-} from './api/client.js?v=21';
-import { map, isLayersLoaded } from './map/map-manager.js?v=21';
-import { updateGlobalRiskGauge } from './components/charts.js?v=21';
-import { getIsSimulating } from './ui/simulation.js?v=21';
+} from './api/client.js?v=22';
+import { map, isLayersLoaded } from './map/map-manager.js?v=22';
+import { updateGlobalRiskGauge } from './components/charts.js?v=22';
+import { getIsSimulating } from './ui/simulation.js?v=22';
 
 export async function updateDashboard() {
     await Promise.all([

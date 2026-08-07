@@ -2,10 +2,10 @@
 // CONTROLADOR DE SIMULACIÓN (WHAT-IF)
 // ==========================================
 
-import { map } from '../map/map-manager.js?v=21';
-import { fetchSimulacion } from '../api/client.js?v=21';
-import { updateGlobalRiskGauge } from '../components/charts.js?v=21';
-import { updateRiskZonesAndGauge } from '../dashboard.js?v=21';
+import { map } from '../map/map-manager.js?v=22';
+import { fetchSimulacion } from '../api/client.js?v=22';
+import { updateGlobalRiskGauge } from '../components/charts.js?v=22';
+import { updateRiskZonesAndGauge } from '../dashboard.js?v=22';
 
 let isSimulating = false;
 

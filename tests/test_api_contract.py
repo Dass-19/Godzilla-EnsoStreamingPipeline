@@ -4,9 +4,9 @@ Verifican que la estructura de RespuestaAPI y los cambios de refactoring
 no rompen lo que parseResponse() espera en client.js.
 """
 
-import sys
 import pathlib
-import time
+import sys
+
 from fastapi.testclient import TestClient
 
 RAIZ_REPO = pathlib.Path(__file__).resolve().parent.parent
