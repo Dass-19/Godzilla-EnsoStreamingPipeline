@@ -194,6 +194,7 @@ services:
       - ./backend/env/.env
     environment:
       - WEBHDFS_URL=http://namenode:9870
+      - TZ=America/Guayaquil
     volumes:
       # Montamos el archivo de credenciales GEE en el contenedor usando la ruta que espera el .env
       - ./backend/env/ensostreamingpipeline-7f414895f6f4.json:/app/ensostreamingpipeline-7f414895f6f4.json
@@ -225,6 +226,7 @@ services:
       # Alineado con la cadencia real de las fuentes (la más rápida publica
       # cada 15 min). Con 60 s se generaban ~1440 parquets vacíos por día.
       - TRIGGER_INTERVAL=5 minutes
+      - TZ=America/Guayaquil
     entrypoint: [ "/bin/sh", "-c" ]
     command: |
       "
@@ -274,6 +276,7 @@ services:
       - SPARK_APP_DIR=/app/spark
       - GEO_REF_PATH=/app/spark/data/geo_ref/zonas_guayaquil.csv
       - CORS_ORIGINS=http://localhost:8000,http://127.0.0.1:8000
+      - TZ=America/Guayaquil
     ports:
       - "8000:8000"
     volumes:
