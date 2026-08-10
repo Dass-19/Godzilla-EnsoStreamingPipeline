@@ -5,14 +5,13 @@ o por COPY). Para los tests se replica esa disposición agregando al path los
 directorios que en runtime son la raíz de import.
 """
 
+import datetime as _dt
 import sys
 import types
 from pathlib import Path
 
-import datetime as _dt
 if not hasattr(_dt, "UTC"):
-    from datetime import timezone
-    _dt.UTC = timezone.utc
+    _dt.UTC = _dt.UTC
 
 RAIZ = Path(__file__).resolve().parent.parent
 
