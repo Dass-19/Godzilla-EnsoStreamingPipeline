@@ -53,6 +53,21 @@ LAYERS = [
 ]
 
 
+def _make_safe_url(url):
+    unquoted = urllib.parse.unquote(url)
+    parsed = urllib.parse.urlparse(unquoted)
+    encoded_path = urllib.parse.quote(parsed.path, safe="/:")
+    encoded_query = urllib.parse.quote(parsed.query, safe=":=&?,*")
+    return urllib.parse.urlunparse((
+        parsed.scheme,
+        parsed.netloc,
+        encoded_path,
+        parsed.params,
+        encoded_query,
+        parsed.fragment
+    ))
+
+
 def download_layer(layer_info, hdfs_client, hdfs_base_path, fmt="geojson"):
     title = layer_info["title"]
     filename = title
@@ -61,16 +76,22 @@ def download_layer(layer_info, hdfs_client, hdfs_base_path, fmt="geojson"):
         try:
             logger.info("Descargando parroquias urbanas y rurales...")
             # Urbanas
+            u_safe_url = _make_safe_url(
+                f"{layer_info['url_urbanas']}/query?where=1=1&outFields=*&outSR=4326&f=geojson"
+            )
             u_req = urllib.request.Request(
-                f"{layer_info['url_urbanas']}/query?where=1=1&outFields=*&outSR=4326&f=geojson",
+                u_safe_url,
                 headers={"User-Agent": "Mozilla/5.0"},
             )
             with urllib.request.urlopen(u_req) as resp:
                 u_data = json.loads(resp.read().decode("utf-8"))
 
             # Rurales
+            r_safe_url = _make_safe_url(
+                f"{layer_info['url_rurales']}/query?where=DPA_DESCAN='GUAYAQUIL'&outFields=*&outSR=4326&f=geojson"
+            )
             r_req = urllib.request.Request(
-                f"{layer_info['url_rurales']}/query?where=DPA_DESCAN='GUAYAQUIL'&outFields=*&outSR=4326&f=geojson",
+                r_safe_url,
                 headers={"User-Agent": "Mozilla/5.0"},
             )
             with urllib.request.urlopen(r_req) as resp:
@@ -101,7 +122,7 @@ def download_layer(layer_info, hdfs_client, hdfs_base_path, fmt="geojson"):
             data = {"type": "FeatureCollection", "features": combined_features}
 
             hdfs_path = f"{hdfs_base_path}/{filename}.{fmt}"
-            content = json.dumps(data).encode("utf-8")
+            content = json.dumps(data, separators=(",", ":")).encode("utf-8")
             hdfs_client.write(hdfs_path, data=content, overwrite=True)
             logger.info(
                 "Guardado en HDFS: %s (%d parroquias)", hdfs_path, len(combined_features)
@@ -112,7 +133,19 @@ def download_layer(layer_info, hdfs_client, hdfs_base_path, fmt="geojson"):
             return False
 
     base_url = layer_info["url"]
-    query_url = f"{base_url}/query?where=1=1&outFields=*&outSR=4326&f={fmt}"
+
+    # Detectar el campo ID único (OBJECTID, FID, etc.) para ordenar y permitir paginación por offset en ArcGIS
+    oid_field = "OBJECTID"
+    try:
+        meta_url = _make_safe_url(f"{base_url}?f=json")
+        req_meta = urllib.request.Request(meta_url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req_meta) as resp_meta:
+            meta_data = json.loads(resp_meta.read().decode("utf-8"))
+            oid_field = meta_data.get("objectIdField", "OBJECTID")
+    except Exception:
+        pass
+
+    query_url = f"{base_url}/query?where=1=1&outFields=*&outSR=4326&f={fmt}&orderByFields={oid_field}"
 
     try:
         all_features = []
@@ -121,7 +154,7 @@ def download_layer(layer_info, hdfs_client, hdfs_base_path, fmt="geojson"):
 
         while True:
             paged_url = query_url + f"&resultOffset={offset}"
-            safe_url = urllib.parse.quote(paged_url, safe=":/?=&")
+            safe_url = _make_safe_url(paged_url)
 
             req = urllib.request.Request(safe_url, headers={"User-Agent": "Mozilla/5.0"})
             with urllib.request.urlopen(req) as response:
@@ -175,7 +208,7 @@ def download_layer(layer_info, hdfs_client, hdfs_base_path, fmt="geojson"):
 
         # Guardar directamente en HDFS
         hdfs_path = f"{hdfs_base_path}/{filename}.{fmt}"
-        content = json.dumps(data).encode("utf-8")
+        content = json.dumps(data, separators=(",", ":")).encode("utf-8")
         hdfs_client.write(hdfs_path, data=content, overwrite=True)
         logger.info("Guardado en HDFS: %s (%d features)", hdfs_path, len(all_features))
         return True

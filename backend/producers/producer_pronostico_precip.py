@@ -24,10 +24,11 @@ URL_OPEN_METEO = (
 
 
 def fetch_pronostico_precip() -> list[dict]:
+    logger.info("Consultando pronóstico de precipitación Open-Meteo en %s", URL_OPEN_METEO)
     try:
         resp = requests.get(URL_OPEN_METEO, timeout=10)
         if not resp.ok:
-            logger.error("Open-Meteo pronóstico respondió %s", resp.status_code)
+            logger.error("Open-Meteo pronóstico respondió %s en %s", resp.status_code, URL_OPEN_METEO)
             return []
         data = resp.json()
 
@@ -55,10 +56,10 @@ def fetch_pronostico_precip() -> list[dict]:
             precip_probability_max=prob,
             horizonte_h=24,
         )
-        logger.info("Pronóstico precipitación 24h: %s mm", precip)
+        logger.info("Pronóstico precipitación 24h: %s mm [fuente: %s]", precip, URL_OPEN_METEO)
         return [payload]
     except Exception:
-        logger.exception("Error consultando pronóstico Open-Meteo")
+        logger.exception("Error consultando pronóstico Open-Meteo en %s", URL_OPEN_METEO)
         return []
 
 

@@ -20,17 +20,19 @@ URL_NIVEL_RIO = "https://inamhi.gob.ec/api_visor/station_data_automaticas/get_da
 
 
 def fetch_inamhi_nivel_rio() -> list[dict]:
+    logger.info("Consultando estaciones hidrológicas de INAMHI en %s", URL_ESTACIONES_HIDRO)
     try:
         resp = requests.get(URL_ESTACIONES_HIDRO, timeout=10)
         if not resp.ok:
-            logger.error("INAMHI nivel de río: catálogo respondió %s", resp.status_code)
+            logger.warning("INAMHI nivel de río: catálogo respondió HTTP %s en %s", resp.status_code, URL_ESTACIONES_HIDRO)
             return []
         cat = resp.json()
 
+        cat_hidro = [est for est in cat if isinstance(est, dict) and "HIDRO" in str(est.get("categoria", ""))]
+        estaciones_operativas = [est for est in cat_hidro if est.get("estado_estacion") == "OPERATIVA"]
+
         payloads = []
-        for est in cat:
-            if not isinstance(est, dict) or est.get("tipo") != "HIDROLOGICA":
-                continue
+        for est in estaciones_operativas:
             id_est = est.get("id_estacion")
             if not id_est:
                 continue
@@ -55,16 +57,20 @@ def fetch_inamhi_nivel_rio() -> list[dict]:
                         }
                     )
             except Exception:
-                logger.warning("INAMHI nivel de río: falla en estación %s", id_est)
+                logger.warning("INAMHI nivel de río: falla en estación %s en %s", id_est, URL_NIVEL_RIO)
                 continue
 
         if payloads:
-            logger.info("INAMHI nivel de río: %s estaciones hidrológicas", len(payloads))
+            logger.info("INAMHI nivel de río: %s estaciones hidrológicas con datos desde %s", len(payloads), URL_NIVEL_RIO)
         else:
-            logger.error("INAMHI nivel de río: ninguna estación devolvió datos")
+            logger.warning(
+                "INAMHI nivel de río: %s estaciones hidrológicas registradas en Guayas, pero 0 están operativas/transmitiendo mediciones en %s",
+                len(cat_hidro),
+                URL_NIVEL_RIO,
+            )
         return payloads
     except Exception:
-        logger.exception("Error INAMHI nivel de río")
+        logger.exception("Error INAMHI nivel de río en %s", URL_ESTACIONES_HIDRO)
         return []
 
 

@@ -135,6 +135,7 @@ def _extraer_desde_post(post: dict) -> dict | None:
 
 
 def fetch_nivel_embalse() -> list[dict]:
+    logger.info("Consultando boletines de prensa de CELEC en %s", WP_API_URL)
     try:
         resp = requests.get(
             WP_API_URL,
@@ -157,7 +158,7 @@ def fetch_nivel_embalse() -> list[dict]:
         posts = resp.json()
 
     except Exception:
-        logger.exception("Error consultando la API de CELEC")
+        logger.exception("Error consultando la API de CELEC en %s", WP_API_URL)
         return []
 
     registros = []
@@ -181,9 +182,9 @@ def fetch_nivel_embalse() -> list[dict]:
 
     # posts vs registros: si CELEC cambia la redacción, el regex deja de matchear y esto lo delata.
     if registros:
-        logger.info("CELEC: %s posts, %s con cota extraída", len(posts), len(registros))
+        logger.info("CELEC: %s posts, %s con cota extraída desde %s", len(posts), len(registros), WP_API_URL)
     else:
-        logger.error("CELEC: %s posts pero ninguno con cota extraíble", len(posts))
+        logger.error("CELEC: %s posts pero ninguno con cota extraíble desde %s", len(posts), WP_API_URL)
 
     return registros
 

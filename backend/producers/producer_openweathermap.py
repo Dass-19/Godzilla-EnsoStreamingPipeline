@@ -19,6 +19,9 @@ INTERVAL_SECONDS = int(os.environ.get("INTERVALO_CLIMA", 60 * 60))
 def fetch_weather():
     # URL de Current Weather Data de OpenWeatherMap
     url = f"https://api.openweathermap.org/data/2.5/weather?q={CITY},{COUNTRY}&appid={API_KEY}&units=metric&lang=es"
+    # Ocultar la API KEY en los logs para seguridad
+    url_log = f"https://api.openweathermap.org/data/2.5/weather?q={CITY},{COUNTRY}&units=metric&lang=es"
+    logger.info("Consultando clima actual de OpenWeatherMap desde %s...", url_log)
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         response = urllib.request.urlopen(req, timeout=10)
@@ -47,7 +50,7 @@ def fetch_weather():
         return payload
 
     except Exception:
-        logger.exception("Error al descargar datos de OpenWeatherMap")
+        logger.exception("Error al descargar datos de OpenWeatherMap desde %s", url_log)
 
 
 def run_producer():

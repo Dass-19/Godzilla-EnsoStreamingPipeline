@@ -15,12 +15,11 @@ INTERVAL_SECONDS = int(os.environ.get("INTERVALO_ALERTAS", 15 * 60))
 
 
 def fetch_sgr_events():
-    logger.info("Descargando eventos de lluvia (SGR)...")
-
     # Filtramos eventos solo para Guayaquil, Daule, Samborondón y Durán
     where_clause = "canton IN ('GUAYAQUIL', 'DAULE', 'SAMBORONDON', 'DURAN')"
     url = f"https://sgrportal.gestionderiesgos.gob.ec/server/rest/services/Hosted/EVENTOS_X_LLUVIAS/FeatureServer/0/query?where={urllib.parse.quote(where_clause)}&outFields=*&outSR=4326&f=geojson"
 
+    logger.info("Descargando eventos de lluvia desde %s...", url)
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req) as response:
@@ -28,13 +27,13 @@ def fetch_sgr_events():
 
             features = data.get("features", [])
             if features:
-                logger.info("Eventos SGR: %s registros", len(features))
+                logger.info("Eventos SGR: %s registros desde %s", len(features), url)
             else:
-                logger.error("Eventos SGR: respuesta sin features")
+                logger.error("Eventos SGR: respuesta sin features desde %s", url)
 
             return data
     except Exception:
-        logger.exception("Error descargando eventos SGR")
+        logger.exception("Error descargando eventos SGR desde %s", url)
 
 
 def run_producer():

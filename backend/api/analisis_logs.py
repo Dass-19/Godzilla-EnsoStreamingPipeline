@@ -47,9 +47,10 @@ DEGRADACIONES = [
         "fuente_vacia",
         re.compile(
             r"sin datos vigentes|ninguna estación devolvió datos|no devolvió features"
-            r"|sin registros parseables|payload sin datos|respuesta sin"
+            r"|sin registros parseables|payload sin datos|respuesta sin|0 están operativas"
+            r"|0 tienen transmisiones|inactivas/cerradas"
         ),
-        "La fuente respondió sin datos utilizables",
+        "La fuente respondió sin datos utilizables o las estaciones están inactivas",
     ),
     (
         "http_error",

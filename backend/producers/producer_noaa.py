@@ -17,11 +17,11 @@ INTERVAL_SECONDS = int(os.environ.get("INTERVALO_INDICES", 60 * 60))
 
 
 def ingest_data():
-    logger.info("Descargando datos de NOAA...")
+    logger.info("Descargando datos de NOAA desde %s...", ENDPOINT)
     try:
         response = requests.get(ENDPOINT, timeout=15)
         if response.status_code != 200:
-            logger.error("NOAA respondió %s", response.status_code)
+            logger.error("NOAA respondió %s en %s", response.status_code, ENDPOINT)
             return None
 
         data_io = io.StringIO(response.text)
@@ -49,7 +49,7 @@ def ingest_data():
             "data": records,
         }
     except Exception:
-        logger.exception("Error al descargar/procesar datos de NOAA")
+        logger.exception("Error al descargar/procesar datos de NOAA desde %s", ENDPOINT)
         return None
 
 

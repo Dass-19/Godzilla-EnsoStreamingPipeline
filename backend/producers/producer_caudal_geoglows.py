@@ -28,10 +28,11 @@ URL_GEOGLOWS = f"https://geoglows.ecmwf.int/api/v2/forecast/{RIVER_ID_GUAYAS}"
 
 
 def fetch_caudal_geoglows() -> list[dict]:
+    logger.info("Consultando caudal fluvial GEOGLOWS en %s", URL_GEOGLOWS)
     try:
         resp = requests.get(URL_GEOGLOWS, params={"format": "json"}, timeout=12)
         if not resp.ok:
-            logger.error("GEOGLOWS API respondió %s", resp.status_code)
+            logger.error("GEOGLOWS API respondió %s en %s", resp.status_code, URL_GEOGLOWS)
             return []
 
         caudal_val = None
@@ -74,13 +75,13 @@ def fetch_caudal_geoglows() -> list[dict]:
                 caudal_m3s=caudal_val,
                 tramo="Guayas",
             )
-            logger.info("Caudal GEOGLOWS Guayas: %s m3/s", caudal_val)
+            logger.info("Caudal GEOGLOWS Guayas: %s m3/s [fuente: %s]", caudal_val, URL_GEOGLOWS)
             return [payload]
 
-        logger.error("GEOGLOWS: payload sin datos de caudal")
+        logger.error("GEOGLOWS: payload sin datos de caudal desde %s", URL_GEOGLOWS)
         return []
     except Exception:
-        logger.exception("Error consultando GEOGLOWS")
+        logger.exception("Error consultando GEOGLOWS en %s", URL_GEOGLOWS)
         return []
 
 

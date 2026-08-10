@@ -64,26 +64,28 @@ def parse_wksst9120(contenido_txt: str) -> list[dict]:
 
 
 def fetch_sst_semanal() -> list[dict]:
+    logger.info("Consultando reporte semanal NOAA CPC SST desde %s", URL_CPC_SEMANAL)
     try:
         resp = requests.get(URL_CPC_SEMANAL, timeout=12)
         if not resp.ok:
-            logger.error("NOAA CPC semanal respondió %s", resp.status_code)
+            logger.error("NOAA CPC semanal respondió %s en %s", resp.status_code, URL_CPC_SEMANAL)
             return []
 
         registros = parse_wksst9120(resp.text)
         if registros:
             mas_reciente = registros[-1]
             logger.info(
-                "NOAA SST semanal (%s): Niño 1+2 SSTA=%s °C",
+                "NOAA SST semanal (%s): Niño 1+2 SSTA=%s °C [fuente: %s]",
                 mas_reciente["fecha_semana"],
                 mas_reciente["anomalia_nino12_c"],
+                URL_CPC_SEMANAL,
             )
             return [mas_reciente]
 
-        logger.error("NOAA CPC semanal: sin registros parseables")
+        logger.error("NOAA CPC semanal: sin registros parseables desde %s", URL_CPC_SEMANAL)
         return []
     except Exception:
-        logger.exception("Error consultando NOAA CPC semanal")
+        logger.exception("Error consultando NOAA CPC semanal en %s", URL_CPC_SEMANAL)
         return []
 
 

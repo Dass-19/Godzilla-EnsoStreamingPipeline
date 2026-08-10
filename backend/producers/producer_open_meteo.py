@@ -29,7 +29,7 @@ def _ventana_fechas():
 
 
 def ingest_data():
-    logger.info("Descargando variables atmosféricas predictivas de Open-Meteo...")
+    logger.info("Descargando variables atmosféricas predictivas de Open-Meteo desde %s...", ENDPOINT)
     inicio, fin = _ventana_fechas()
     params = {
         "latitude": LATITUD_NINO34,
@@ -42,7 +42,7 @@ def ingest_data():
     try:
         response = requests.get(ENDPOINT, params=params, timeout=15)
         if response.status_code != 200:
-            logger.error("Open-Meteo respondió %s", response.status_code)
+            logger.error("Open-Meteo respondió %s en %s", response.status_code, ENDPOINT)
             return None
 
         raw_data = response.json()
@@ -62,9 +62,9 @@ def ingest_data():
                 records.append(record)
 
         if not records:
-            logger.error("Open-Meteo: respuesta sin bloque diario")
+            logger.error("Open-Meteo: respuesta sin bloque diario desde %s", ENDPOINT)
         else:
-            logger.info("Open-Meteo: %s registros diarios", len(records))
+            logger.info("Open-Meteo: %s registros diarios desde %s", len(records), ENDPOINT)
 
         return {
             "metadata": {
@@ -83,7 +83,7 @@ def ingest_data():
             "data": records,
         }
     except Exception:
-        logger.exception("Error al descargar/procesar datos de Open-Meteo")
+        logger.exception("Error al descargar/procesar datos de Open-Meteo desde %s", ENDPOINT)
         return None
 
 

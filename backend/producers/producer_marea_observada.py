@@ -22,26 +22,27 @@ URL_IOC_PUNA = "https://www.ioc-sealevelmonitoring.org/service.php?query=data&co
 
 
 def fetch_marea_ioc(url: str, estacion_id: str) -> dict | None:
+    logger.info("Consultando marea observada IOC (%s) en %s", estacion_id, url)
     try:
         resp = requests.get(url, timeout=10, verify=certifi.where())
         if not resp.ok:
-            logger.warning("IOC %s respondió %s", estacion_id, resp.status_code)
+            logger.warning("IOC %s respondió %s en %s", estacion_id, resp.status_code, url)
             return None
         data = resp.json()
         if not isinstance(data, list) or not data:
-            logger.warning("IOC %s: sin mediciones", estacion_id)
+            logger.warning("IOC %s: sin mediciones en %s", estacion_id, url)
             return None
 
         # La última entrada trae la medición de nivel más reciente
         medicion = data[-1]
         if not isinstance(medicion, dict):
-            logger.warning("IOC %s: medición con formato inesperado", estacion_id)
+            logger.warning("IOC %s: medición con formato inesperado en %s", estacion_id, url)
             return None
 
         # slevel es la columna de altura del mareógrafo
         altura = medicion.get("slevel")
         if altura is None:
-            logger.warning("IOC %s: medición sin nivel", estacion_id)
+            logger.warning("IOC %s: medición sin nivel en %s", estacion_id, url)
             return None
 
         fecha = medicion.get("stime") or medicion.get("date")
@@ -53,7 +54,7 @@ def fetch_marea_ioc(url: str, estacion_id: str) -> dict | None:
             fecha_utc=str(fecha) if fecha else None,
         )
     except Exception:
-        logger.exception("Error consultando marea IOC (%s)", estacion_id)
+        logger.exception("Error consultando marea IOC (%s) en %s", estacion_id, url)
         return None
 
 

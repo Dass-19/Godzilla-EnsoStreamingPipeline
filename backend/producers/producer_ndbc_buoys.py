@@ -29,6 +29,7 @@ def fetch_buoy_data(buoy):
         "https://marine-api.open-meteo.com/v1/marine"
         f"?latitude={buoy['lat']}&longitude={buoy['lon']}&current={VARIABLES}"
     )
+    logger.info("Consultando boya %s (%s) en %s...", buoy["id"], buoy["name"], url)
     try:
         r = requests.get(url, timeout=10)
         r.raise_for_status()
@@ -37,7 +38,7 @@ def fetch_buoy_data(buoy):
 
         water_temp = current.get("sea_surface_temperature")
         if water_temp is None:
-            logger.warning("Boya %s sin SST disponible", buoy["id"])
+            logger.warning("Boya %s sin SST disponible en %s", buoy["id"], url)
 
         return {
             "buoy_id": buoy["id"],
@@ -51,7 +52,7 @@ def fetch_buoy_data(buoy):
             "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
         }
     except Exception:
-        logger.exception("Error obteniendo datos para la boya %s", buoy["id"])
+        logger.exception("Error obteniendo datos para la boya %s en %s", buoy["id"], url)
         return None
 
 

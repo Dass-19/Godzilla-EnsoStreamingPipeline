@@ -107,6 +107,7 @@ def _dejar_solo_palabras(texto: str) -> str:
 
 
 def fetch_alertas() -> list[dict]:
+    logger.info("Consultando alertas de la SNGR en %s", WP_API_URL)
     try:
         resp = requests.get(
             WP_API_URL,
@@ -126,7 +127,7 @@ def fetch_alertas() -> list[dict]:
 
     except Exception:
         # fuente event-driven: sin conexión = "sin novedades", no se simula.
-        logger.exception("Error consultando la API de la SNGR")
+        logger.exception("Error consultando la API de la SNGR en %s", WP_API_URL)
         return []
 
     registros = []
@@ -154,7 +155,7 @@ def fetch_alertas() -> list[dict]:
             }
         )
 
-    logger.info("SNGR: %s posts, %s alertas de Guayas", len(posts), len(registros))
+    logger.info("SNGR: %s posts, %s alertas de Guayas desde %s", len(posts), len(registros), WP_API_URL)
 
     return registros
 

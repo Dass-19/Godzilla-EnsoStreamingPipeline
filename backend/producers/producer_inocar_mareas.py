@@ -66,8 +66,31 @@ def _trimestre_actual(fecha: datetime) -> int:
     return (fecha.month - 1) // 3 + 1
 
 
+INOCAR_BASE_URL = "https://www.inocar.mil.ec"
+
+
+def _verificar_estado_web_inocar() -> bool:
+    """Verifica si el servidor web de INOCAR responde antes de intentar procesar PDFs."""
+    try:
+        resp = requests.head(
+            INOCAR_BASE_URL,
+            timeout=5,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/127.0.0.0 Safari/537.36"
+                )
+            },
+        )
+        return resp.ok or resp.status_code in (301, 302, 403)
+    except requests.exceptions.RequestException:
+        return False
+
+
 def _descargar_pdf(anio: int, trimestre: int) -> bytes:
     url = PDF_URL_TEMPLATE.format(anio=anio, trimestre=trimestre)
+    logger.info("Descargando PDF oficial de mareas INOCAR desde %s", url)
     respuesta = requests.get(
         url,
         timeout=20,
@@ -225,10 +248,19 @@ def cargar_historico(anio_inicio: int = 2022) -> list[dict]:
 def fetch_marea() -> list[dict]:
     ahora = datetime.now(UTC)
     anio, trimestre = ahora.year, _trimestre_actual(ahora)
+    pdf_url = PDF_URL_TEMPLATE.format(anio=anio, trimestre=trimestre)
 
     try:
         clave_cache = (anio, trimestre)
         if clave_cache not in _cache_eventos:
+            if not _verificar_estado_web_inocar():
+                logger.warning(
+                    "INOCAR: sitio web inalcanzable (%s); se utiliza el modelo armónico de respaldo sin consultar %s",
+                    INOCAR_BASE_URL,
+                    pdf_url,
+                )
+                return _modelo_armonico_fallback()
+
             pdf_bytes = _descargar_pdf(anio, trimestre)
             texto = _extraer_texto(pdf_bytes)
             _cache_eventos[clave_cache] = _parsear_eventos(
@@ -243,8 +275,8 @@ def fetch_marea() -> list[dict]:
             # 0 eventos parseados = INOCAR cambió el layout del PDF; N = el instante cae fuera del rango.
             logger.warning(
                 "INOCAR: sin evento que rodee el instante actual (%s eventos "
-                "parseados de %s-T%s); se usa el modelo armónico",
-                len(eventos), anio, trimestre,
+                "parseados de %s-T%s desde %s); se usa el modelo armónico",
+                len(eventos), anio, trimestre, pdf_url,
             )
             return _modelo_armonico_fallback()
 
@@ -253,7 +285,7 @@ def fetch_marea() -> list[dict]:
         t1, h1 = resultado["evento_siguiente"]
         es_pleamar = altura >= max(h0, h1) - 0.3
 
-        logger.info("Marea INOCAR: %s m (%s)", altura, resultado["tendencia"])
+        logger.info("Marea INOCAR: %s m (%s) [fuente: %s]", altura, resultado["tendencia"], pdf_url)
         return [
             construir_marea(
                 altura_m=altura,
@@ -263,8 +295,8 @@ def fetch_marea() -> list[dict]:
             )
         ]
     except Exception:
-        logger.exception("INOCAR: falló el PDF de %s-T%s; se usa el modelo armónico",
-                         anio, trimestre)
+        logger.exception("INOCAR: falló el PDF de %s-T%s (%s); se usa el modelo armónico",
+                         anio, trimestre, pdf_url)
         return _modelo_armonico_fallback()
 
 

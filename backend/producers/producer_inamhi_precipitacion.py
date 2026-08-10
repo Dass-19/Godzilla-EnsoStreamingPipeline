@@ -21,24 +21,21 @@ URL_PRECIPITACION = "https://inamhi.gob.ec/api_visor/station_data_automaticas/ge
 
 def fetch_inamhi_precipitacion() -> dict:
     """Descubre estaciones de Guayas y extrae acumulados recientes."""
+    logger.info("Consultando catálogo INAMHI en %s", URL_ESTACIONES)
     try:
         resp_est = requests.get(URL_ESTACIONES, timeout=10)
         if not resp_est.ok:
-            logger.error("INAMHI API respondió %s", resp_est.status_code)
+            logger.warning("INAMHI API respondió HTTP %s en %s", resp_est.status_code, URL_ESTACIONES)
             return {}
         cat_estaciones = resp_est.json()
     except Exception:
-        logger.exception("Error consultando catálogo INAMHI")
+        logger.exception("Error consultando catálogo INAMHI en %s", URL_ESTACIONES)
         return {}
 
+    estaciones_operativas = [est for est in cat_estaciones if isinstance(est, dict) and est.get("estado_estacion") == "OPERATIVA"]
     estaciones_validas = []
 
-    for est in cat_estaciones:
-        if not isinstance(est, dict):
-            continue
-        if est.get("estado_transmision") != "TRANSMITIENDO":
-            continue
-
+    for est in estaciones_operativas:
         id_est = est.get("id_estacion")
         if not id_est:
             continue
@@ -73,27 +70,37 @@ def fetch_inamhi_precipitacion() -> dict:
                     fecha_d = str(d.get("fecha_observacion", ""))
                     serie_15d.append({"fecha": fecha_d, "precip_mm": val})
 
-        estaciones_validas.append(
-            construir_lluvia_estacion(
-                id_estacion=str(id_est),
-                codigo=str(est.get("codigo_estacion", id_est)),
-                lat=float(lat),
-                lon=float(lon),
-                precip_24h_mm=precip_24h,
-                fecha_ultimo_dato=fecha_ultimo,
-                serie_diaria_15d=serie_15d,
+            estaciones_validas.append(
+                construir_lluvia_estacion(
+                    id_estacion=str(id_est),
+                    codigo=str(est.get("codigo_estacion", id_est)),
+                    lat=float(lat),
+                    lon=float(lon),
+                    precip_24h_mm=precip_24h,
+                    fecha_ultimo_dato=fecha_ultimo,
+                    serie_diaria_15d=serie_15d,
+                )
             )
-        )
 
-    return {"estaciones": estaciones_validas}
+    return {"estaciones": estaciones_validas, "total_operativas": len(estaciones_operativas)}
 
 
 def fetch_payloads() -> list[dict]:
     data = fetch_inamhi_precipitacion()
     if data and data.get("estaciones"):
-        logger.info("INAMHI lluvia: %s estaciones en Guayas", len(data["estaciones"]))
+        logger.info(
+            "INAMHI lluvia: %s de %s estaciones operativas en Guayas enviaron datos desde %s",
+            len(data["estaciones"]),
+            data.get("total_operativas", 0),
+            URL_PRECIPITACION,
+        )
         return [data]
-    logger.error("INAMHI lluvia: sin datos vigentes")
+    total_op = data.get("total_operativas", 0) if data else 0
+    logger.warning(
+        "INAMHI lluvia: %s estaciones operativas encontradas en Guayas, pero 0 tienen transmisiones recientes en %s",
+        total_op,
+        URL_PRECIPITACION,
+    )
     return []
 
 

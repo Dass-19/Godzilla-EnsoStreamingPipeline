@@ -30,7 +30,7 @@ def _ventana_fechas():
 
 
 def ingest_data():
-    logger.info("Descargando datos de impactos locales de El Niño desde NASA POWER...")
+    logger.info("Descargando datos de impactos locales de El Niño desde NASA POWER en %s...", ENDPOINT)
     # T2M: Temp a 2m, PRECTOTCORR: Lluvia corregida, WS10M: Viento a 10m
     # WD10M: Dirección del viento, ALLSKY_SFC_SW_DWN: Radiación Solar, PS: Presión superficial
     inicio, fin = _ventana_fechas()
@@ -46,7 +46,7 @@ def ingest_data():
     try:
         response = requests.get(ENDPOINT, params=params, timeout=15)
         if response.status_code != 200:
-            logger.error("NASA POWER respondió %s", response.status_code)
+            logger.error("NASA POWER respondió %s en %s", response.status_code, ENDPOINT)
             return None
 
         raw_data = response.json()
@@ -73,9 +73,9 @@ def ingest_data():
                     )
 
         if not records:
-            logger.error("NASA POWER: respuesta sin registros diarios")
+            logger.error("NASA POWER: respuesta sin registros diarios desde %s", ENDPOINT)
         else:
-            logger.info("NASA POWER: %s registros diarios", len(records))
+            logger.info("NASA POWER: %s registros diarios desde %s", len(records), ENDPOINT)
 
         return {
             "metadata": {
@@ -95,7 +95,7 @@ def ingest_data():
             "data": records,
         }
     except Exception:
-        logger.exception("Error al descargar/procesar datos de NASA POWER")
+        logger.exception("Error al descargar/procesar datos de NASA POWER desde %s", ENDPOINT)
         return None
 
 
