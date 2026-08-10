@@ -9,6 +9,11 @@ import sys
 import types
 from pathlib import Path
 
+import datetime as _dt
+if not hasattr(_dt, "UTC"):
+    from datetime import timezone
+    _dt.UTC = timezone.utc
+
 RAIZ = Path(__file__).resolve().parent.parent
 
 for directorio in (
