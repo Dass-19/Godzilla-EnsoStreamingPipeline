@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx.cmd",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "c:/Users/H P/Desktop/Dass/university/6S/IDED & VD/Godzilla-EnsoStreamingPipeline"
+      ]
+    }
+  }
+}

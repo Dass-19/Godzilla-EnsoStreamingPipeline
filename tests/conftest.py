@@ -11,7 +11,7 @@ import types
 from pathlib import Path
 
 if not hasattr(_dt, "UTC"):
-    _dt.UTC = _dt.UTC
+    _dt.UTC = _dt.timezone.utc  # noqa: UP017
 
 RAIZ = Path(__file__).resolve().parent.parent
 
