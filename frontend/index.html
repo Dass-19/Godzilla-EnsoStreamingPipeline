@@ -87,6 +87,8 @@
                 (SeguraEP)</label>
             <label class="menu-label"><input type="checkbox" id="toggle-sgr-viasinundables" checked> 🚗 Vías Inundables
                 (SeguraEP)</label>
+            <label class="menu-label"><input type="checkbox" id="toggle-metrovia-t4" checked> 🚌 Metrovía Troncal 4
+                (Suburbio-Centro)</label>
         </div>
     </div>
 
@@ -327,6 +329,33 @@
                     <canvas id="globalRiskGauge"></canvas>
                 </div>
                 <p id="global-risk-text" class="font-bold mt-2">Calculando...</p>
+            </section>
+
+            <!-- Metrovía & Troncal 4 Card (mov-troncal4 & mov-metrovia) -->
+            <section class="card" id="metrovia-card" style="border: 1px solid #3b82f6; background: rgba(15, 23, 42, 0.95); margin-top: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <h3 style="color: #60a5fa; margin: 0; font-size: 13px;">🚌 Metrovía: Troncal 4</h3>
+                    <span id="val-t4-badge" style="font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: #22c55e; color: #022c22; text-transform: uppercase;">OPERATIVA</span>
+                </div>
+                <div style="font-size: 11px; color: #94a3b8; margin-bottom: 8px;">
+                    Batallón del Suburbio ↔ Centro (23.7 km · 120k pax/día)
+                </div>
+                <div class="metrics" style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px;">
+                    <div class="metric" style="background: rgba(30, 41, 59, 0.8); padding: 6px; border-radius: 6px;">
+                        <span class="label" style="font-size: 9px; display: block;">DEMORA ESTIMADA</span>
+                        <span class="value" id="val-t4-demora" style="font-size: 16px; font-weight: bold; color: #f8fafc;">+0 min</span>
+                    </div>
+                    <div class="metric" style="background: rgba(30, 41, 59, 0.8); padding: 6px; border-radius: 6px;">
+                        <span class="label" style="font-size: 9px; display: block;">PARADAS INUNDADAS</span>
+                        <span class="value" id="val-t4-afectadas" style="font-size: 16px; font-weight: bold; color: #4ade80;">0 / 23</span>
+                    </div>
+                </div>
+                <div id="val-t4-alerta" style="font-size: 11px; padding: 6px 8px; border-radius: 6px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); color: #cbd5e1; line-height: 1.35; margin-bottom: 6px;">
+                    Consultando estado del servicio...
+                </div>
+                <div id="val-t4-contingencia-box" class="hidden" style="font-size: 10.5px; padding: 6px 8px; border-radius: 6px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; line-height: 1.35;">
+                    <b>Plan de Contingencia:</b> <span id="val-t4-plan-desc">--</span>
+                </div>
             </section>
 
 

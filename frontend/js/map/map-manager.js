@@ -294,6 +294,105 @@ export function initMap() {
             }
         });
 
+        // Metrovía Troncal 4: Ruta Regular
+        map.addSource('metrovia-t4-regular', {
+            type: 'geojson',
+            data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [] } }
+        });
+        map.addLayer({
+            id: 'metrovia-t4-regular-layer',
+            type: 'line',
+            source: 'metrovia-t4-regular',
+            paint: {
+                'line-color': ['coalesce', ['get', 'color'], '#3b82f6'],
+                'line-width': 4.5,
+                'line-opacity': 0.95
+            },
+            layout: { 'visibility': 'visible', 'line-join': 'round', 'line-cap': 'round' }
+        });
+
+        // Metrovía Troncal 4: Bucle de Contingencia & Desvío Elevado
+        map.addSource('metrovia-t4-desvio', {
+            type: 'geojson',
+            data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [] } }
+        });
+        map.addLayer({
+            id: 'metrovia-t4-desvio-layer',
+            type: 'line',
+            source: 'metrovia-t4-desvio',
+            paint: {
+                'line-color': '#22c55e',
+                'line-width': 5,
+                'line-dasharray': [2, 2],
+                'line-opacity': 0.95
+            },
+            layout: { 'visibility': 'none', 'line-join': 'round', 'line-cap': 'round' }
+        });
+
+        // Metrovía Troncal 4: Paradas y Estaciones
+        map.addSource('metrovia-t4-paradas', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] }
+        });
+        map.addLayer({
+            id: 'metrovia-t4-paradas-layer',
+            type: 'circle',
+            source: 'metrovia-t4-paradas',
+            paint: {
+                'circle-radius': [
+                    'case',
+                    ['boolean', ['get', 'es_transbordo'], false], 8,
+                    5.5
+                ],
+                'circle-color': [
+                    'match',
+                    ['get', 'estado'],
+                    'INUNDADA', '#ef4444',
+                    'ALERTA_PREVENTIVA', '#facc15',
+                    /* default / OPERATIVA */ '#3b82f6'
+                ],
+                'circle-stroke-width': 2.5,
+                'circle-stroke-color': '#ffffff'
+            },
+            layout: { 'visibility': 'visible' }
+        });
+        map.addLayer({
+            id: 'metrovia-t4-paradas-labels',
+            type: 'symbol',
+            source: 'metrovia-t4-paradas',
+            minzoom: 13,
+            layout: {
+                'text-field': ['get', 'nombre'],
+                'text-size': 10,
+                'text-offset': [0, 1.2],
+                'text-anchor': 'top',
+                'visibility': 'visible'
+            },
+            paint: {
+                'text-color': '#ffffff',
+                'text-halo-color': '#0f172a',
+                'text-halo-width': 2
+            }
+        });
+
         layersLoaded = true;
     });
 }
+
+export function updateMetroviaMapData(t4Data) {
+    if (!map || !map.getSource('metrovia-t4-regular')) return;
+    if (t4Data.geojson_regular) {
+        map.getSource('metrovia-t4-regular').setData(t4Data.geojson_regular);
+    }
+    if (t4Data.geojson_desvio) {
+        map.getSource('metrovia-t4-desvio').setData(t4Data.geojson_desvio);
+        if (map.getLayer('metrovia-t4-desvio-layer')) {
+            const isVisible = t4Data.plan_contingencia?.activo ? 'visible' : 'none';
+            map.setLayoutProperty('metrovia-t4-desvio-layer', 'visibility', isVisible);
+        }
+    }
+    if (t4Data.geojson_paradas) {
+        map.getSource('metrovia-t4-paradas').setData(t4Data.geojson_paradas);
+    }
+}
+

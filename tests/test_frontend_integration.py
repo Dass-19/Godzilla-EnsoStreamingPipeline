@@ -53,6 +53,8 @@ def test_openapi_schema_builds(client):
     assert "/api/clima/punto" in schema["paths"]
     assert "/api/escenario/simular" in schema["paths"]
     assert "/api/logs" in schema["paths"]
+    assert "/api/metrovia/troncal4/estado" in schema["paths"]
+    assert "/api/metrovia/troncales/resumen" in schema["paths"]
 
 
 def test_error_response_has_envelope(client):

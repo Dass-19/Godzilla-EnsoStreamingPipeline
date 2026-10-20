@@ -202,7 +202,8 @@ export function initUIControls() {
             { check: 'toggle-sgr-celestes', layers: ['sgr-celestes-layer', 'sgr-celestes-outline', 'sgr-celestes-labels'] },
             { check: 'toggle-seguraep-zonasegura', layers: ['sgr-zonasegura-layer'] },
             { check: 'toggle-sgr-zonasinundables', layers: ['sgr-zonasinundables-layer'] },
-            { check: 'toggle-sgr-viasinundables', layers: ['sgr-viasinundables-layer'] }
+            { check: 'toggle-sgr-viasinundables', layers: ['sgr-viasinundables-layer'] },
+            { check: 'toggle-metrovia-t4', layers: ['metrovia-t4-regular-layer', 'metrovia-t4-desvio-layer', 'metrovia-t4-paradas-layer', 'metrovia-t4-paradas-labels'] }
         ];
         localMap.forEach(item => {
             const isChecked = document.getElementById(item.check)?.checked;
@@ -326,6 +327,13 @@ export function initUIControls() {
     toggleLayer('toggle-seguraep-zonasegura', 'sgr-zonasegura-layer');
     toggleLayer('toggle-sgr-zonasinundables', 'sgr-zonasinundables-layer');
     toggleLayer('toggle-sgr-viasinundables', 'sgr-viasinundables-layer');
+
+    document.getElementById('toggle-metrovia-t4')?.addEventListener('change', (e) => {
+        const vis = e.target.checked ? 'visible' : 'none';
+        ['metrovia-t4-regular-layer', 'metrovia-t4-desvio-layer', 'metrovia-t4-paradas-layer', 'metrovia-t4-paradas-labels'].forEach(l => {
+            if (map && map.getLayer(l)) map.setLayoutProperty(l, 'visibility', vis);
+        });
+    });
 
     document.getElementById('toggle-sgr-celestes')?.addEventListener('change', (e) => {
         if (map && map.getLayer('sgr-celestes-layer')) {

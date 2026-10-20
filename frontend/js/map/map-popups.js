@@ -387,4 +387,59 @@ export function initMapInteractions() {
     });
     map.on('mouseenter', 'sgr-celestes-layer', () => { map.getCanvas().style.cursor = 'pointer'; });
     map.on('mouseleave', 'sgr-celestes-layer', () => { map.getCanvas().style.cursor = ''; });
+
+    // Metrovía Troncal 4: Paradas y Estaciones
+    map.on('click', 'metrovia-t4-paradas-layer', (e) => {
+        if (!e.features || e.features.length === 0) return;
+        const p = e.features[0].properties;
+        const isFlooded = p.estado === 'INUNDADA';
+        const isAlert = p.estado === 'ALERTA_PREVENTIVA';
+        const statusBadge = isFlooded
+            ? `<span style="background:#fee2e2; color:#b91c1c; font-weight:700; padding:2px 7px; border-radius:4px; font-size:10px;">🔴 INUNDADA - SUSPENDIDA</span>`
+            : (isAlert
+                ? `<span style="background:#fef3c7; color:#b45309; font-weight:700; padding:2px 7px; border-radius:4px; font-size:10px;">🟡 ALERTA DE TRÁFICO</span>`
+                : `<span style="background:#dcfce7; color:#15803d; font-weight:700; padding:2px 7px; border-radius:4px; font-size:10px;">🟢 OPERATIVA</span>`);
+
+        const cotaNum = Number(p.cota_msnm || 0).toFixed(1);
+        const aguaHtml = p.nivel_agua_est_cm > 0
+            ? `<div style="background:#fff1f2; border:1px solid #fecdd3; color:#9f1239; padding:6px; border-radius:6px; font-size:11px; margin-bottom:6px;">⚠️ <b>Agua estimada en calzada:</b> ${p.nivel_agua_est_cm} cm acumulados.</div>`
+            : '';
+
+        const alertaHtml = p.alerta
+            ? `<div style="font-size:11px; color:#334155; line-height:1.35; background:#f8fafc; padding:6px; border-radius:6px; border:1px solid #e2e8f0; margin-bottom:6px;">${p.alerta}</div>`
+            : '';
+
+        const transbordoHtml = (p.es_transbordo === true || p.es_transbordo === 'true')
+            ? `<div style="background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; padding:6px; border-radius:6px; font-size:10.5px; font-weight:600;">⭐ <b>Punto de Retorno Seguro:</b> Cota alta para bucle de contingencia ante inundación del Suburbio.</div>`
+            : '';
+
+        const html = `
+            <div style="font-family: Inter, system-ui, sans-serif; color: #1e293b; width: 270px; padding: 2px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:6px; margin-bottom:8px;">
+                    <h4 style="margin:0; font-size:13px; font-weight:700; color:#0f172a;">🚌 ${p.nombre}</h4>
+                </div>
+                <div style="margin-bottom:8px;">${statusBadge}</div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-bottom:8px; font-size:11px;">
+                    <div style="background:#f8fafc; padding:5px 6px; border-radius:6px; border:1px solid #e2e8f0;">
+                        <span style="color:#64748b; font-size:9px; font-weight:600; display:block;">COTA TERRENO</span>
+                        <b style="color:${cotaNum < 4.0 ? '#ef4444' : '#15803d'}; font-size:12px;">${cotaNum} m s.n.m.</b>
+                    </div>
+                    <div style="background:#f8fafc; padding:5px 6px; border-radius:6px; border:1px solid #e2e8f0;">
+                        <span style="color:#64748b; font-size:9px; font-weight:600; display:block;">LÍNEA</span>
+                        <b style="color:#2563eb; font-size:12px;">Troncal 4</b>
+                    </div>
+                </div>
+                <div style="font-size:11px; margin-bottom:6px; color:#64748b;">
+                    <b>Sector:</b> ${p.sector || 'Corredor Troncal 4'}
+                </div>
+                ${aguaHtml}
+                ${alertaHtml}
+                ${transbordoHtml}
+            </div>
+        `;
+        setCurrentPopup(new maplibregl.Popup({ closeButton: true, maxWidth: '300px' }).setLngLat(e.lngLat).setHTML(html).addTo(map));
+    });
+    map.on('mouseenter', 'metrovia-t4-paradas-layer', () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', 'metrovia-t4-paradas-layer', () => { map.getCanvas().style.cursor = ''; });
 }
+

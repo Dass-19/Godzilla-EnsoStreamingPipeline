@@ -205,6 +205,9 @@ Todos son `GET` y de solo lectura.
 | `/api/capas/sectores` | Distritos operativos de respuesta de Segura EP (A01–A18). |
 | `/api/capas/zonas-inundables` · `zonas-seguras` · `vias-inundables` · `vias-vulnerables-marea` | Capas de vulnerabilidad de Segura EP / SGR. |
 | `/api/capas/guayas-osm` | Ríos, esteros y equipamiento crítico desde OpenStreetMap. |
+| **Movilidad y Metrovía** | |
+| `/api/metrovia/troncal4/estado` | Estado operativo de la Troncal 4 (23.7 km, 23 paradas), plan de contingencia (bucle Calle 11) y GeoJSON de rutas regular/desvío ante pleamar. |
+| `/api/metrovia/troncales/resumen` | Semáforo de estado de las 4 troncales operativas, tiempos de demora y alerta temprana para evitar el colapso de estaciones. |
 | **Observabilidad** | |
 | `/api/logs/productores` | Producers con logs archivados en HDFS. |
 | `/api/logs?producer=X` | Líneas de log de un producer. Acepta `desde`, `hasta`, `nivel` y `limite`. Devuelve lista vacía, no 404, si nada pasa el filtro. |

@@ -138,3 +138,18 @@ export async function fetchLogResumen(dias = 1) {
     const res = await fetch(`${CONFIG.API_BASE}logs/resumen?dias=${dias}`);
     return await parseResponse(res, "Error consultando el resumen de logs");
 }
+
+export async function fetchMetroviaTroncal4(precip = null, marea = null) {
+    const params = new URLSearchParams();
+    if (precip !== null && precip !== undefined) params.set('precip_mm', precip);
+    if (marea !== null && marea !== undefined) params.set('altura_marea_m', marea);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const res = await fetch(`${CONFIG.API_BASE}metrovia/troncal4/estado${query}`);
+    return await parseResponse(res, "Error consultando estado de Troncal 4");
+}
+
+export async function fetchMetroviaResumen() {
+    const res = await fetch(`${CONFIG.API_BASE}metrovia/troncales/resumen`);
+    return await parseResponse(res, "Error consultando resumen de troncales");
+}
+

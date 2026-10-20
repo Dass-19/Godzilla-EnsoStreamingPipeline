@@ -46,6 +46,7 @@ try:
         enso,
         eventos,
         hidrologia,
+        metrovia,
         observabilidad,
         riesgo,
         salud,
@@ -66,6 +67,7 @@ except ImportError:
         enso,
         eventos,
         hidrologia,
+        metrovia,
         observabilidad,
         riesgo,
         salud,
@@ -147,6 +149,13 @@ tags_metadata = [
             "HDFS (ver HandlerHDFS en backend/producers/common/kafka_client.py)."
         ),
     },
+    {
+        "name": "metrovia",
+        "description": (
+            "Monitoreo operativo de la Metrovía y plan de contingencia de la "
+            "Troncal 4 (Batallón del Suburbio - Centro) ante anegamiento por marea y lluvia."
+        ),
+    },
 ]
 
 app = FastAPI(
@@ -214,6 +223,7 @@ app.include_router(eventos.router)
 app.include_router(capas.router)
 app.include_router(alertas.router)
 app.include_router(observabilidad.router)
+app.include_router(metrovia.router)
 
 # Montaje de archivos estáticos del Frontend
 frontend_path = RAIZ_REPO / "frontend"

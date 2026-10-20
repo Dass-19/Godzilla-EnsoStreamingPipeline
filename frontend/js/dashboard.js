@@ -12,9 +12,10 @@ import {
     fetchEmbalseActual,
     fetchRiesgoZonas,
     fetchCaudalGeoglows,
-    fetchSgrEvents
+    fetchSgrEvents,
+    fetchMetroviaTroncal4
 } from './api/client.js?v=22';
-import { map, isLayersLoaded } from './map/map-manager.js?v=22';
+import { map, isLayersLoaded, updateMetroviaMapData } from './map/map-manager.js?v=22';
 import { updateGlobalRiskGauge } from './components/charts.js?v=22';
 import { getIsSimulating } from './ui/simulation.js?v=22';
 
@@ -28,7 +29,8 @@ export async function updateDashboard() {
         updateEmbalseData(),
         updateHydroData(),
         updateSgrEventsData(),
-        updateRiskZonesAndGauge()
+        updateRiskZonesAndGauge(),
+        updateMetroviaTroncal4()
     ]);
 }
 
@@ -363,3 +365,61 @@ export async function updateSgrEventsData() {
         setText('val-sgr-afectados', '0 pers.');
     }
 }
+
+export async function updateMetroviaTroncal4(precip = null, marea = null) {
+    try {
+        const data = await fetchMetroviaTroncal4(precip, marea);
+        if (!data) return;
+
+        // Actualizar Badge de Estado General
+        const badge = document.getElementById('val-t4-badge');
+        if (badge) {
+            badge.innerText = data.estado_general.replace(/_/g, ' ');
+            if (data.estado_general === 'DESVIO_CONTINGENCIA') {
+                badge.style.background = '#ef4444';
+                badge.style.color = '#ffffff';
+            } else if (data.estado_general === 'RETRASO_MODERADO') {
+                badge.style.background = '#facc15';
+                badge.style.color = '#713f12';
+            } else {
+                badge.style.background = '#22c55e';
+                badge.style.color = '#022c22';
+            }
+        }
+
+        // Actualizar Métricas
+        const demoraEl = document.getElementById('val-t4-demora');
+        if (demoraEl) {
+            demoraEl.innerText = `+${data.demora_estimada_min} min`;
+            demoraEl.style.color = data.demora_estimada_min > 0 ? '#f87171' : '#4ade80';
+        }
+
+        const afectadasEl = document.getElementById('val-t4-afectadas');
+        if (afectadasEl) {
+            afectadasEl.innerText = `${data.paradas_inundadas_total} / ${data.total_paradas}`;
+            afectadasEl.style.color = data.paradas_inundadas_total > 0 ? '#ef4444' : '#4ade80';
+        }
+
+        const alertaEl = document.getElementById('val-t4-alerta');
+        if (alertaEl) {
+            alertaEl.innerText = data.alerta_pasajero;
+        }
+
+        const contingenciaBox = document.getElementById('val-t4-contingencia-box');
+        const planDesc = document.getElementById('val-t4-plan-desc');
+        if (contingenciaBox && planDesc) {
+            if (data.plan_contingencia && data.plan_contingencia.activo) {
+                contingenciaBox.classList.remove('hidden');
+                planDesc.innerText = `${data.plan_contingencia.estrategia}. Transbordo seguro en ${data.plan_contingencia.estacion_transbordo_seguro}.`;
+            } else {
+                contingenciaBox.classList.add('hidden');
+            }
+        }
+
+        // Actualizar Capas de Metrovía en MapLibre
+        updateMetroviaMapData(data);
+    } catch (e) {
+        console.error("Error actualizando Metrovia Troncal 4:", e);
+    }
+}
+

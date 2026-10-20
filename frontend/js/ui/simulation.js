@@ -5,7 +5,7 @@
 import { map } from '../map/map-manager.js?v=22';
 import { fetchSimulacion } from '../api/client.js?v=22';
 import { updateGlobalRiskGauge } from '../components/charts.js?v=22';
-import { updateRiskZonesAndGauge } from '../dashboard.js?v=22';
+import { updateRiskZonesAndGauge, updateMetroviaTroncal4 } from '../dashboard.js?v=22';
 
 let isSimulating = false;
 
@@ -57,6 +57,9 @@ export async function runSimulation(rain, tide, dam, btnId, btnText) {
             toggleRiesgo.checked = true;
             toggleRiesgo.dispatchEvent(new Event('change'));
         }
+
+        // Actualizar contingencia de Metrovía Troncal 4 bajo escenario simulado
+        updateMetroviaTroncal4(Number(rain), Number(tide));
     } catch (e) {
         console.error("Error en simulación:", e);
     }
@@ -122,5 +125,6 @@ export function initSimulationControls() {
         document.getElementById('sim-tide-val').innerText = '0';
         document.getElementById('sim-dam-val').innerText = '70';
         updateRiskZonesAndGauge();
+        updateMetroviaTroncal4();
     });
 }
