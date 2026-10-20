@@ -27,7 +27,7 @@ from hdfs import InsecureClient
 LAYERS = [
     {
         "title": "sgr_zonas_inundables",
-        "url": "https://services1.arcgis.com/ESOnuLz5X3I3J4At/arcgis/rest/services/Zonas_Inundables/FeatureServer/28",
+        "url": "https://services1.arcgis.com/ESOnuLz5X3I3J4At/arcgis/rest/services/Zonas_Inundables_TR10/FeatureServer/3",
     },
     {
         "title": "sgr_zonas_seguras",
